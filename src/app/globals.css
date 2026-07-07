@@ -105,4 +105,26 @@
     color: hsl(var(--foreground));
     font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   }
+
+  /*
+   * Native date inputs on iOS Safari get a UA intrinsic min-width that overrides
+   * `width: 100%`, so they overflow their container (and, inside a flex row, push
+   * out of alignment). This only bites on mobile, where the date fields are
+   * full-width; on `lg` and up they are a fixed `w-40` and render natively.
+   * Scoped to mobile so the desktop calendar-picker chrome is untouched.
+   */
+  @media (max-width: 1023px) {
+    input[type="date"] {
+      -webkit-appearance: none;
+      appearance: none;
+      min-width: 0;
+    }
+    input[type="date"]::-webkit-date-and-time-value {
+      margin: 0;
+      text-align: left;
+    }
+    input[type="date"]::-webkit-datetime-edit {
+      padding: 0;
+    }
+  }
 }
