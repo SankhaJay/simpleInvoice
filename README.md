@@ -173,6 +173,8 @@ npm run test:e2e      # headless
 npm run test:e2e:ui   # interactive
 ```
 
+**Continuous integration** — [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the full gate on every push / PR to `main`: **lint → typecheck → unit tests → production build → E2E**. It needs no secrets (unit tests inject their own env; E2E uses the local mock upstream), and uploads the Playwright report as an artifact.
+
 ---
 
 ## Project structure

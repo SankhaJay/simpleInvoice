@@ -223,10 +223,10 @@ The **detail** endpoint returns a richer `InvoiceDetail` (customer contact + add
 
 ## 9. What I would add next (given more time)
 
-Already delivered beyond the brief: invoice **detail view**, **duplicate**, **profile**, full‑payload create form, **silent token refresh**, and a **Playwright E2E** suite. Remaining ideas:
+Already delivered beyond the brief: invoice **detail view**, **duplicate**, **profile**, full‑payload create form, **silent token refresh**, a **Playwright E2E** suite, and a **GitHub Actions CI** pipeline (lint → typecheck → unit → build → e2e). Remaining ideas:
 
 - **Invoice edit / void** and multi‑line items (behind a feature flag).
 - A **shared store (Redis)** for the rate limiter and refresh single‑flight, plus structured request logging and metrics — needed for horizontal scaling.
 - **Proactive token refresh** ahead of expiry and a configurable/rolling session length (today it's a ~1‑hour session; refresh already covers mid‑session revocation reactively).
-- **CI pipeline** (lint + typecheck + unit + e2e) and a container image.
+- A **container image** (Dockerfile) for portable deployment.
 - **Nonce‑based CSP for styles** to drop `'unsafe-inline'` from `style-src`.
