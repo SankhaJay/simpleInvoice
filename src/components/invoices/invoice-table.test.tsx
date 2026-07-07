@@ -1,8 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { InvoiceTable } from "@/components/invoices/invoice-table";
 import type { Invoice } from "@/types/invoice";
 import { invoiceQuerySchema } from "@/schemas/invoice-query.schema";
+
+// Rows navigate via useRouter; stub next/navigation for the render.
+const push = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn() }),
+}));
 
 const query = invoiceQuerySchema.parse({});
 const noop = vi.fn();
@@ -50,5 +57,22 @@ describe("InvoiceTable", () => {
     expect(screen.getAllByText("IV1001").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Ada Lovelace").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/£500\.00/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("navigates to the invoice detail when a row is clicked", async () => {
+    const user = userEvent.setup();
+    render(
+      <InvoiceTable
+        invoices={[invoice]}
+        query={query}
+        setQuery={noop}
+        isLoading={false}
+        isFetching={false}
+      />,
+    );
+    // The customer name appears in both the desktop row and the mobile card;
+    // the first (desktop table row) carries the onClick navigation.
+    await user.click(screen.getAllByText("Ada Lovelace")[0]!);
+    expect(push).toHaveBeenCalledWith("/invoices/1");
   });
 });

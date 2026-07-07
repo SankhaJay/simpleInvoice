@@ -1,6 +1,8 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ArrowUpDown, FileX2 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, FileX2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
@@ -42,6 +44,8 @@ export function InvoiceTable({
   isLoading: boolean;
   isFetching: boolean;
 }) {
+  const router = useRouter();
+
   function toggleSort(field: SortField) {
     const nextOrdering =
       query.sortBy === field && query.ordering === "DESCENDING" ? "ASCENDING" : "DESCENDING";
@@ -107,8 +111,22 @@ export function InvoiceTable({
           </TableHeader>
           <TableBody>
             {invoices.map((inv) => (
-              <TableRow key={inv.id}>
-                <TableCell className="font-medium">{inv.invoiceNumber}</TableCell>
+              <TableRow
+                key={inv.id}
+                onClick={() => router.push(`/invoices/${inv.id}`)}
+                className="cursor-pointer"
+              >
+                <TableCell className="font-medium">
+                  {/* Real link for keyboard access / open-in-new-tab; the row
+                      onClick handles clicks anywhere else in the row. */}
+                  <Link
+                    href={`/invoices/${inv.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="hover:underline"
+                  >
+                    {inv.invoiceNumber}
+                  </Link>
+                </TableCell>
                 <TableCell>{inv.customerName}</TableCell>
                 <TableCell>{formatDate(inv.invoiceDate)}</TableCell>
                 <TableCell>{formatDate(inv.dueDate)}</TableCell>
@@ -127,30 +145,38 @@ export function InvoiceTable({
       {/* Mobile: cards */}
       <ul className="space-y-3 md:hidden">
         {invoices.map((inv) => (
-          <li key={inv.id} className="rounded-xl border border-border bg-card p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-medium">{inv.invoiceNumber}</p>
-                <p className="text-sm text-muted-foreground">{inv.customerName}</p>
+          <li key={inv.id}>
+            <Link
+              href={`/invoices/${inv.id}`}
+              className="block rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/50"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-1 font-medium">
+                    {inv.invoiceNumber}
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </p>
+                  <p className="text-sm text-muted-foreground">{inv.customerName}</p>
+                </div>
+                <InvoiceStatusBadge status={inv.status} />
               </div>
-              <InvoiceStatusBadge status={inv.status} />
-            </div>
-            <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <dt className="text-muted-foreground">Invoice date</dt>
-                <dd>{formatDate(inv.invoiceDate)}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Due date</dt>
-                <dd>{formatDate(inv.dueDate)}</dd>
-              </div>
-              <div className="col-span-2">
-                <dt className="text-muted-foreground">Amount</dt>
-                <dd className="font-medium tabular-nums">
-                  {formatCurrency(inv.totalAmount, inv.currency)}
-                </dd>
-              </div>
-            </dl>
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <dt className="text-muted-foreground">Invoice date</dt>
+                  <dd>{formatDate(inv.invoiceDate)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Due date</dt>
+                  <dd>{formatDate(inv.dueDate)}</dd>
+                </div>
+                <div className="col-span-2">
+                  <dt className="text-muted-foreground">Amount</dt>
+                  <dd className="font-medium tabular-nums">
+                    {formatCurrency(inv.totalAmount, inv.currency)}
+                  </dd>
+                </div>
+              </dl>
+            </Link>
           </li>
         ))}
       </ul>
