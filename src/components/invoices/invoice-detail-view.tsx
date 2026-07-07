@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Copy, FileX2, Landmark, Paperclip, Tags, RefreshCw } from "lucide-react";
+import { ArrowLeft, FileX2, Landmark, Paperclip, Tags, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { useInvoice } from "@/hooks/use-invoice";
@@ -79,16 +79,9 @@ function Detail({ invoice }: { invoice: InvoiceDetail }) {
             <p className="text-sm text-muted-foreground">Ref: {invoice.reference}</p>
           )}
         </div>
-        <div className="flex items-center gap-4">
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/invoices/new?from=${invoice.id}`}>
-              <Copy /> Duplicate
-            </Link>
-          </Button>
-          <div className="text-right">
-            <p className="text-sm text-muted-foreground">Total</p>
-            <p className="text-2xl font-semibold tabular-nums">{money(invoice.totals.total)}</p>
-          </div>
+        <div className="text-right">
+          <p className="text-sm text-muted-foreground">Total</p>
+          <p className="text-2xl font-semibold tabular-nums">{money(invoice.totals.total)}</p>
         </div>
       </div>
 
