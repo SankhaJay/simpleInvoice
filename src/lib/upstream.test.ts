@@ -5,6 +5,7 @@ import {
   toUpstreamInvoicePayload,
   normalizeInvoice,
   exchangePasswordForToken,
+  refreshAccessToken,
   fetchUserProfile,
   fetchInvoices,
 } from "@/lib/upstream";
@@ -200,6 +201,25 @@ describe("upstream HTTP calls (mocked)", () => {
       ),
     );
     await expect(exchangePasswordForToken("user", "bad")).rejects.toMatchObject({ status: 401 });
+  });
+
+  it("refreshAccessToken exchanges a refresh token for a fresh access token", async () => {
+    server.use(
+      http.post("https://auth.test/t/101digital.core/oauth2/token", () =>
+        HttpResponse.json({ access_token: "fresh", refresh_token: "rt2", expires_in: 3600 }),
+      ),
+    );
+    const result = await refreshAccessToken("rt1");
+    expect(result).toEqual({ accessToken: "fresh", refreshToken: "rt2", expiresIn: 3600 });
+  });
+
+  it("refreshAccessToken maps an invalid/expired refresh token to a 401", async () => {
+    server.use(
+      http.post("https://auth.test/t/101digital.core/oauth2/token", () =>
+        HttpResponse.json({ error: "invalid_grant" }, { status: 400 }),
+      ),
+    );
+    await expect(refreshAccessToken("dead")).rejects.toMatchObject({ status: 401 });
   });
 
   it("fetchUserProfile extracts org token from memberships[0]", async () => {

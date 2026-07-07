@@ -39,15 +39,47 @@ export async function exchangePasswordForToken(
   username: string,
   password: string,
 ): Promise<TokenResult> {
-  const body = new URLSearchParams({
-    client_id: env.OAUTH_CLIENT_ID,
-    client_secret: env.OAUTH_CLIENT_SECRET,
-    grant_type: "password",
-    scope: env.OAUTH_SCOPE,
-    username,
-    password,
-  });
+  return postTokenRequest(
+    new URLSearchParams({
+      client_id: env.OAUTH_CLIENT_ID,
+      client_secret: env.OAUTH_CLIENT_SECRET,
+      grant_type: "password",
+      scope: env.OAUTH_SCOPE,
+      username,
+      password,
+    }),
+    "Invalid username or password.",
+  );
+}
 
+/**
+ * Exchange a refresh token for a fresh access token. Used to recover silently
+ * from upstream 401s.
+ *
+ * Context: the 101 Digital identity server issues a single active access token
+ * per (client, user) and revokes the previous one on each new password‑grant
+ * login. On the SHARED sandbox credentials, another login elsewhere therefore
+ * revokes ours mid‑session. The refresh token survives a competing login (it is
+ * not revoked by a password grant), so refreshing recovers the session without
+ * forcing the user to sign in again.
+ */
+export async function refreshAccessToken(refreshToken: string): Promise<TokenResult> {
+  return postTokenRequest(
+    new URLSearchParams({
+      client_id: env.OAUTH_CLIENT_ID,
+      client_secret: env.OAUTH_CLIENT_SECRET,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
+    "Your session has expired. Please sign in again.",
+  );
+}
+
+/** Shared OAuth2 token-endpoint POST used by the password and refresh grants. */
+async function postTokenRequest(
+  body: URLSearchParams,
+  failureMessage: string,
+): Promise<TokenResult> {
   const res = await fetchWithTimeout(`${env.AUTH_BASE_URL}/t/101digital.core/oauth2/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -57,9 +89,9 @@ export async function exchangePasswordForToken(
   });
 
   if (!res.ok) {
-    // 400/401 from the identity server means bad credentials. We deliberately
-    // do not forward the upstream body (which can be noisy) to the client.
-    throw new UpstreamError(res.status === 400 ? 401 : res.status, "Invalid username or password.");
+    // A 400/401 here means bad credentials or an invalid/expired refresh token.
+    // We deliberately do not forward the (noisy) upstream body to the client.
+    throw new UpstreamError(res.status === 400 ? 401 : res.status, failureMessage);
   }
 
   const json = await parseJsonSafe<{

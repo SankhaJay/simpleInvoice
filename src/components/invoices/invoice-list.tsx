@@ -1,6 +1,8 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InvoiceFilters } from "@/components/invoices/invoice-filters";
@@ -8,10 +10,20 @@ import { InvoiceTable } from "@/components/invoices/invoice-table";
 import { InvoicePagination } from "@/components/invoices/invoice-pagination";
 import { useInvoiceQueryState } from "@/hooks/use-invoice-query-state";
 import { useInvoices } from "@/hooks/use-invoices";
+import { ApiClientError } from "@/lib/api-client";
 
 export function InvoiceList() {
+  const router = useRouter();
   const { query, setQuery } = useInvoiceQueryState();
   const { data, isLoading, isFetching, isError, error, refetch } = useInvoices(query);
+
+  // A 401 here means the session could not even be refreshed server-side (it was
+  // destroyed) — route the user to sign in again rather than show a dead error.
+  React.useEffect(() => {
+    if (error instanceof ApiClientError && error.status === 401) {
+      router.replace("/login");
+    }
+  }, [error, router]);
 
   return (
     <div className="space-y-6">
