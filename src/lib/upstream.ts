@@ -258,7 +258,7 @@ export function normalizeInvoice(raw: UpstreamInvoice): Invoice {
     id: raw.invoiceId,
     invoiceNumber: raw.invoiceNumber,
     reference: raw.invoiceReference,
-    customerName: raw.customer?.name?.trim() || "—",
+    customerName: resolveCustomerName(raw.customer),
     currency: raw.currency,
     currencySymbol: raw.currencySymbol || raw.currency,
     invoiceDate: raw.invoiceDate,
@@ -268,4 +268,20 @@ export function normalizeInvoice(raw: UpstreamInvoice): Invoice {
     totalAmount: raw.totalAmount ?? 0,
     balanceAmount: raw.balanceAmount ?? 0,
   };
+}
+
+/**
+ * Resolve a display name from either upstream customer shape: a combined
+ * `name`, or `firstName`/`lastName` (the shape returned for invoices created
+ * through this app). Falls back to an em-dash when nothing is present.
+ */
+function resolveCustomerName(customer: UpstreamInvoice["customer"]): string {
+  if (!customer) return "—";
+  const combined = customer.name?.trim();
+  if (combined) return combined;
+  const fromParts = [customer.firstName, customer.lastName]
+    .map((p) => p?.trim())
+    .filter(Boolean)
+    .join(" ");
+  return fromParts || "—";
 }

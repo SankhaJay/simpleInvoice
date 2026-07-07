@@ -29,7 +29,10 @@ export interface UpstreamInvoice {
   balanceAmount?: number;
   totalPaid?: number;
   createdAt?: string;
-  customer?: { id?: string; name?: string } | null;
+  // The upstream customer arrives in two shapes: some records carry a combined
+  // `name`, others carry `firstName`/`lastName` (e.g. invoices created via our
+  // own form). We handle both when normalising.
+  customer?: { id?: string; name?: string; firstName?: string; lastName?: string } | null;
   merchant?: { id?: string; name?: string } | null;
 }
 
