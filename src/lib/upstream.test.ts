@@ -8,6 +8,7 @@ import {
   exchangePasswordForToken,
   refreshAccessToken,
   fetchUserProfile,
+  fetchProfile,
   fetchInvoices,
   fetchInvoice,
 } from "@/lib/upstream";
@@ -316,6 +317,45 @@ describe("upstream HTTP calls (mocked)", () => {
     const { user, orgToken } = await fetchUserProfile("AT");
     expect(orgToken).toBe("ORG_TOKEN");
     expect(user.organisationName).toBe("Corp");
+  });
+
+  it("fetchProfile normalises the full profile (token-free)", async () => {
+    server.use(
+      http.get("https://api.test/membership-service/1.0.0/users/me", () =>
+        HttpResponse.json({
+          data: {
+            userId: "u1",
+            firstName: "James",
+            lastName: "Vand",
+            fullName: "James Vand xyz",
+            mobileNumber: "94756921275",
+            status: "Active",
+            createdAt: "2026-06-05T07:32:01.896",
+            contacts: [{ contactType: "EMAIL", value: "james@corp.io" }],
+            memberships: [
+              {
+                token: "ORG_TOKEN",
+                organisationId: "o1",
+                organisationName: "James Corp",
+                roleName: "OrganisationOwner",
+                organisationRole: "MERCHANT",
+              },
+            ],
+          },
+        }),
+      ),
+    );
+    const profile = await fetchProfile("AT");
+    expect(profile).toMatchObject({
+      userId: "u1",
+      displayName: "James Vand", // prefers first+last over the messy fullName
+      mobileNumber: "94756921275",
+      email: "james@corp.io",
+      status: "Active",
+      organisation: { name: "James Corp", role: "OrganisationOwner", organisationRole: "MERCHANT" },
+    });
+    // Never leak the org token into the profile payload.
+    expect(JSON.stringify(profile)).not.toContain("ORG_TOKEN");
   });
 
   it("fetchInvoices normalises items and paging", async () => {
