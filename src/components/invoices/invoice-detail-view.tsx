@@ -69,7 +69,7 @@ function Detail({ invoice }: { invoice: InvoiceDetail }) {
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{invoice.invoiceNumber}</h1>
@@ -79,7 +79,7 @@ function Detail({ invoice }: { invoice: InvoiceDetail }) {
             <p className="text-sm text-muted-foreground">Ref: {invoice.reference}</p>
           )}
         </div>
-        <div className="text-right">
+        <div className="sm:text-right">
           <p className="text-sm text-muted-foreground">Total</p>
           <p className="text-2xl font-semibold tabular-nums">{money(invoice.totals.total)}</p>
         </div>
