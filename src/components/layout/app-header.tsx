@@ -2,16 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LogOut, Plus, Loader2 } from "lucide-react";
+import { FileText, LogOut, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useLogout } from "@/hooks/use-session";
 import type { SessionUser } from "@/types/session";
 
-const NAV = [
-  { href: "/invoices", label: "Invoices" },
-  { href: "/invoices/new", label: "New Invoice" },
-];
+const NAV = [{ href: "/invoices", label: "Invoices" }];
 
 export function AppHeader({ user }: { user: SessionUser }) {
   const pathname = usePathname();
@@ -53,11 +50,6 @@ export function AppHeader({ user }: { user: SessionUser }) {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button asChild size="sm" className="hidden sm:inline-flex">
-            <Link href="/invoices/new">
-              <Plus /> New
-            </Link>
-          </Button>
           <div className="hidden text-right md:block">
             <p className="text-sm font-medium leading-tight">{user.fullName || "User"}</p>
             <p className="text-xs leading-tight text-muted-foreground">{user.organisationName}</p>

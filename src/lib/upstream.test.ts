@@ -82,6 +82,18 @@ describe("normalizeInvoice", () => {
     });
   });
 
+  it("builds the customer name from firstName/lastName when no combined name", () => {
+    const inv = normalizeInvoice({
+      invoiceId: "id-3",
+      invoiceNumber: "IV902",
+      currency: "GBP",
+      invoiceDate: "2026-07-02",
+      dueDate: "2026-07-02",
+      customer: { id: "c3", firstName: "Ada", lastName: "Lovelace" },
+    });
+    expect(inv.customerName).toBe("Ada Lovelace");
+  });
+
   it("falls back to Draft status and em-dash customer when missing", () => {
     const inv = normalizeInvoice({
       invoiceId: "id-2",
