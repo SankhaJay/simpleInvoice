@@ -19,6 +19,7 @@ import {
   computeInvoiceTotals,
   CURRENCIES,
   UOMS,
+  ADJUSTMENT_NAMES,
   ADJUSTMENT_DIRECTIONS,
   ADJUSTMENT_TYPES,
   type CreateInvoiceInput,
@@ -331,6 +332,10 @@ export function InvoiceForm() {
   );
 }
 
+const NAME_LABELS: Record<(typeof ADJUSTMENT_NAMES)[number], string> = {
+  tax: "Tax",
+  discount: "Discount",
+};
 const DIRECTION_LABELS: Record<(typeof ADJUSTMENT_DIRECTIONS)[number], string> = {
   ADD: "Add",
   DEDUCT: "Deduct",
@@ -360,14 +365,24 @@ function ExtensionsEditor({
     <div className="space-y-3">
       {fields.map((field, index) => (
         <div key={field.id} className="flex flex-wrap items-start gap-2 rounded-lg border border-border p-3 sm:flex-nowrap">
-          <div className="min-w-[8rem] flex-1">
-            <Input placeholder="Name (e.g. VAT)" {...register(`itemExtensions.${index}.name`)} aria-label="Adjustment name" />
-            {rowErrors?.[index]?.name?.message && (
-              <p role="alert" className="mt-1 text-sm text-destructive">
-                {rowErrors[index]?.name?.message}
-              </p>
+          <Controller
+            control={control}
+            name={`itemExtensions.${index}.name`}
+            render={({ field: f }) => (
+              <Select value={f.value} onValueChange={f.onChange}>
+                <SelectTrigger className="w-[8rem] flex-1" aria-label="Adjustment">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ADJUSTMENT_NAMES.map((n) => (
+                    <SelectItem key={n} value={n}>
+                      {NAME_LABELS[n]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
-          </div>
+          />
           <Controller
             control={control}
             name={`itemExtensions.${index}.addDeduct`}
@@ -430,7 +445,7 @@ function ExtensionsEditor({
         type="button"
         variant="outline"
         size="sm"
-        onClick={() => append({ name: "", addDeduct: "ADD", type: "PERCENTAGE", value: 0 })}
+        onClick={() => append({ name: "tax", addDeduct: "ADD", type: "PERCENTAGE", value: undefined })}
       >
         <Plus /> Add adjustment
       </Button>
