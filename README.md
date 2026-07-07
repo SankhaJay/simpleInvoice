@@ -131,7 +131,7 @@ This solution treats the assessment's security guidance as first‑class require
 | CSRF protection                | Double‑submit token + same‑origin checks — [`lib/csrf.ts`](src/lib/csrf.ts)     |
 | Rate limiting                  | Login throttle — [`lib/rate-limit.ts`](src/lib/rate-limit.ts)                   |
 | Security headers + CSP         | [`next.config.ts`](next.config.ts) + per‑request nonce CSP in [`src/proxy.ts`](src/proxy.ts) |
-| Secrets hygiene                | `.env.local` + Postman env git‑ignored; `.example` templates committed          |
+| Secrets hygiene                | `.env.local`, brief & Postman files git‑ignored; `.env.example` committed with placeholders |
 
 ---
 
@@ -225,4 +225,4 @@ e2e/                         Playwright specs + mock upstream server
 - **Upstream `status`** arrives as an array of `{ key, value }` flags; the UI surfaces the first active flag (e.g. `Due`, `Overdue`).
 - **Upstream `customer`** comes in two shapes (`{ name }` or `{ firstName, lastName }`); the list normalises both to a single display name.
 - **Rate limiting** is in‑memory (per instance) and configurable via `LOGIN_RATE_LIMIT` — appropriate for this assessment; a shared store (e.g. Redis) would be used for multi‑instance production. Called out in the security doc.
-- The sandbox credentials in the brief are treated as **sensitive**: they live only in `.env.local` and the (git‑ignored) Postman environment. Committed `.example` files carry placeholders.
+- The sandbox credentials in the brief are treated as **sensitive**: they live only in `.env.local`. The brief and the Postman collection/environment are git‑ignored; the committed `.env.example` carries placeholders. (Set up `.env.local` with the credentials from Appendix A of the brief.)
