@@ -25,7 +25,10 @@ export async function POST(request: NextRequest) {
   if (!assertSameOrigin(request)) return Errors.forbidden();
 
   // Throttle by client IP (5 attempts / minute).
-  const limit = rateLimit(`login:${clientIp(request.headers)}`, { limit: 5, windowMs: 60_000 });
+  const limit = rateLimit(`login:${clientIp(request.headers)}`, {
+    limit: env.LOGIN_RATE_LIMIT,
+    windowMs: 60_000,
+  });
   if (!limit.allowed) return Errors.tooManyRequests(limit.retryAfter);
 
   // Parse + validate the body against the shared schema.

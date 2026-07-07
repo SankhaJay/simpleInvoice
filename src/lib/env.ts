@@ -20,6 +20,9 @@ const envSchema = z.object({
     .string()
     .min(32, "SESSION_SECRET must be at least 32 characters for AES sealing"),
   SESSION_COOKIE_NAME: z.string().min(1).default("si_session"),
+  // Max login attempts per IP per minute. Configurable so it can be relaxed for
+  // automated E2E runs; keep the conservative default in production.
+  LOGIN_RATE_LIMIT: z.coerce.number().int().positive().default(5),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 
