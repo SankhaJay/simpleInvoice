@@ -33,7 +33,24 @@ export function defaultInvoiceValues(): CreateInvoiceInput {
     quantity: 1,
     rate: 0,
     itemUOM: "UNIT",
-    taxPercentage: undefined,
-    discountValue: undefined,
+    itemExtensions: [],
+
+    // Optional billing address
+    addressPremise: "",
+    addressCity: "",
+    addressCounty: "",
+    addressPostcode: "",
+    addressCountryCode: "",
+
+    // Optional payee bank account
+    bankId: "",
+    bankAccountName: "",
+    bankSortCode: "",
+    bankAccountNumber: "",
+
+    // Optional attachments + custom fields (start empty)
+    documents: [],
+    customFields: [],
+    itemCustomFields: [],
   };
 }

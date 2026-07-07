@@ -52,30 +52,71 @@ describe("createInvoiceSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects tax above 100%", () => {
-    const result = createInvoiceSchema.safeParse({ ...validInvoice, taxPercentage: 150 });
+  it("rejects an adjustment with a negative value", () => {
+    const result = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      itemExtensions: [{ name: "tax", addDeduct: "ADD", type: "PERCENTAGE", value: -5 }],
+    });
     expect(result.success).toBe(false);
+  });
+
+  it("accepts adjustments across the full add/deduct × fixed/percentage matrix", () => {
+    const result = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      itemExtensions: [
+        { name: "surcharge", addDeduct: "ADD", type: "FIXED_VALUE", value: 10 },
+        { name: "loyalty", addDeduct: "DEDUCT", type: "PERCENTAGE", value: 5 },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("requires the full bank block once any bank field is entered", () => {
+    const result = createInvoiceSchema.safeParse({ ...validInvoice, bankAccountNumber: "12345678" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const paths = result.error.issues.map((i) => i.path.join("."));
+      expect(paths).toContain("bankId");
+      expect(paths).toContain("bankAccountName");
+      expect(paths).toContain("bankSortCode");
+    }
+  });
+
+  it("accepts a complete bank block", () => {
+    const result = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      bankId: "bank-123",
+      bankAccountName: "John Terry",
+      bankSortCode: "09-01-01",
+      bankAccountNumber: "12345678",
+    });
+    expect(result.success).toBe(true);
   });
 });
 
 describe("computeInvoiceTotals", () => {
-  it("computes subtotal, tax (add) and discount (deduct)", () => {
+  it("supports the full matrix (percentage add, fixed add, percentage deduct, fixed deduct)", () => {
     const totals = computeInvoiceTotals({
       quantity: 3,
-      rate: 200,
-      taxPercentage: 10,
-      discountValue: 50,
+      rate: 200, // subtotal = 600
+      extensions: [
+        { addDeduct: "ADD", type: "PERCENTAGE", value: 10 }, // +60
+        { addDeduct: "ADD", type: "FIXED_VALUE", value: 15 }, // +15
+        { addDeduct: "DEDUCT", type: "PERCENTAGE", value: 5 }, // -30
+        { addDeduct: "DEDUCT", type: "FIXED_VALUE", value: 25 }, // -25
+      ],
     });
     expect(totals.subtotal).toBe(600);
-    expect(totals.tax).toBe(60);
-    expect(totals.discount).toBe(50);
-    expect(totals.total).toBe(610);
+    expect(totals.additions).toBe(75);
+    expect(totals.deductions).toBe(55);
+    expect(totals.total).toBe(620);
   });
 
-  it("handles missing tax/discount as zero", () => {
+  it("handles no adjustments as just the subtotal", () => {
     const totals = computeInvoiceTotals({ quantity: 1, rate: 99.99 });
     expect(totals.subtotal).toBe(99.99);
-    expect(totals.tax).toBe(0);
+    expect(totals.additions).toBe(0);
+    expect(totals.deductions).toBe(0);
     expect(totals.total).toBe(99.99);
   });
 
