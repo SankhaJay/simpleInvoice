@@ -5,8 +5,9 @@ const STATUS_VARIANT: Record<string, BadgeProps["variant"]> = {
   Paid: "success",
   Due: "warning",
   Overdue: "destructive",
-  Void: "secondary",
-  Draft: "outline",
+  Cancelled: "secondary",
+  Rejected: "destructive",
+  Draft: "outline", // display-only fallback when an invoice has no active status flag
 };
 
 export function InvoiceStatusBadge({ status }: { status: string }) {
