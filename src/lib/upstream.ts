@@ -307,7 +307,7 @@ function buildExtensions(extensions: CreateInvoiceInput["itemExtensions"]) {
     .map((e) => ({
       addDeduct: e.addDeduct,
       type: e.type,
-      value: e.value,
+      value: e.value ?? 0,
       name: e.name.trim(),
     }));
 }
