@@ -64,7 +64,7 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
         <Input
           id="username"
           autoComplete="username"
-          placeholder="e.g. 94756921275"
+          placeholder="Your username"
           aria-invalid={!!errors.username}
           aria-describedby={errors.username ? "username-error" : undefined}
           {...register("username")}

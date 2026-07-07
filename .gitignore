@@ -36,8 +36,11 @@ yarn-error.log*
 .env*.local
 !.env.example
 
-docs/
-plans/
+# The architecture docs, ADRs and Postman collection are committed (shareable).
+# But the assessment brief and the Postman *environment* contain the real
+# sandbox credentials (Appendix A) — keep those out of the repo.
+docs/Assessment Project*
+docs/postman/
 
 # vercel
 .vercel

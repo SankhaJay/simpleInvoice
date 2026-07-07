@@ -333,7 +333,7 @@ describe("upstream HTTP calls (mocked)", () => {
             firstName: "James",
             lastName: "Vand",
             fullName: "James Vand xyz",
-            mobileNumber: "94756921275",
+            mobileNumber: "94700000000",
             status: "Active",
             createdAt: "2026-06-05T07:32:01.896",
             contacts: [{ contactType: "EMAIL", value: "james@corp.io" }],
@@ -354,7 +354,7 @@ describe("upstream HTTP calls (mocked)", () => {
     expect(profile).toMatchObject({
       userId: "u1",
       displayName: "James Vand", // prefers first+last over the messy fullName
-      mobileNumber: "94756921275",
+      mobileNumber: "94700000000",
       email: "james@corp.io",
       status: "Active",
       organisation: { name: "James Corp", role: "OrganisationOwner", organisationRole: "MERCHANT" },
