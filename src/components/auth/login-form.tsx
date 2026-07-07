@@ -26,6 +26,7 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
   } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
     defaultValues: { username: "", password: "" },
+    mode: "onBlur",
   });
 
   async function onSubmit(values: LoginInput) {

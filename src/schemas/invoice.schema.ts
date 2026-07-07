@@ -14,17 +14,85 @@ const money = z
 /** Optional free-text: accepts an empty string or a trimmed value up to `max`. */
 const optionalText = (max: number) => z.string().trim().max(max).optional().or(z.literal(""));
 
-/** A repeatable key/value pair (upstream `customFields[]`). */
-export const customFieldSchema = z.object({
-  key: z.string().trim().min(1, "Key is required").max(80),
-  value: z.string().trim().max(255).optional().or(z.literal("")),
-});
+/** Accepted invoice-date year range (guards against typos like 0202 / 9999). */
+export const MIN_YEAR = 2000;
+export const MAX_YEAR = 2100;
 
-/** A repeatable attachment reference (upstream `documents[]`). */
-export const documentSchema = z.object({
-  documentName: z.string().trim().min(1, "Name is required").max(120),
-  documentUrl: z.url("Enter a valid URL").max(2000),
-});
+/** True only for a real `YYYY-MM-DD` calendar date (rejects 2026-13-45, 2026-02-30). */
+function isRealCalendarDate(value: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
+}
+
+/** Whether a URL string uses the http or https scheme. */
+function isHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A required date field: must be present in `YYYY-MM-DD` format, a real calendar
+ * date, and within the accepted year bounds. Emits one message at a time.
+ */
+function dateField(missingMessage: string) {
+  return z.string().superRefine((value, ctx) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      ctx.addIssue({ code: "custom", message: missingMessage });
+      return;
+    }
+    if (!isRealCalendarDate(value)) {
+      ctx.addIssue({ code: "custom", message: "Enter a real calendar date" });
+      return;
+    }
+    const year = Number(value.slice(0, 4));
+    if (year < MIN_YEAR || year > MAX_YEAR) {
+      ctx.addIssue({ code: "custom", message: `Year must be between ${MIN_YEAR} and ${MAX_YEAR}` });
+    }
+  });
+}
+
+/**
+ * A repeatable key/value pair (upstream `customFields[]`).
+ * A fully-empty row is allowed (it is dropped before submit); a row with a value
+ * but no key is flagged so nothing is silently lost.
+ */
+export const customFieldSchema = z
+  .object({
+    key: z.string().trim().max(80),
+    value: z.string().trim().max(255),
+  })
+  .superRefine((row, ctx) => {
+    if (!row.key && !row.value) return; // empty row → dropped later
+    if (!row.key) ctx.addIssue({ code: "custom", path: ["key"], message: "Key is required" });
+  });
+
+/**
+ * A repeatable attachment (upstream `documents[]`). Empty rows are allowed and
+ * dropped; a partially-filled row must have both a name and a valid http(s) URL.
+ */
+export const documentSchema = z
+  .object({
+    documentName: z.string().trim().max(120),
+    documentUrl: z.string().trim().max(2000),
+  })
+  .superRefine((row, ctx) => {
+    if (!row.documentName && !row.documentUrl) return; // empty row → dropped later
+    if (!row.documentName) {
+      ctx.addIssue({ code: "custom", path: ["documentName"], message: "Name is required" });
+    }
+    if (!row.documentUrl) {
+      ctx.addIssue({ code: "custom", path: ["documentUrl"], message: "Enter a URL" });
+    } else if (!isHttpUrl(row.documentUrl)) {
+      ctx.addIssue({ code: "custom", path: ["documentUrl"], message: "Must be an http(s) URL" });
+    }
+  });
 
 /** Adjustment direction and type (upstream `extensions[].addDeduct` / `.type`). */
 export const ADJUSTMENT_DIRECTIONS = ["ADD", "DEDUCT"] as const;
@@ -32,14 +100,27 @@ export const ADJUSTMENT_TYPES = ["FIXED_VALUE", "PERCENTAGE"] as const;
 
 /**
  * A repeatable line-item adjustment (upstream `extensions[]`). Supports the full
- * matrix — any name, ADD or DEDUCT, FIXED_VALUE or PERCENTAGE, any value.
+ * matrix — any name, ADD or DEDUCT, FIXED_VALUE or PERCENTAGE. A fully-empty row
+ * (no name, no value) is allowed and dropped; otherwise name + value are required
+ * and a PERCENTAGE value is capped at 100.
  */
-export const extensionSchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(60),
-  addDeduct: z.enum(ADJUSTMENT_DIRECTIONS),
-  type: z.enum(ADJUSTMENT_TYPES),
-  value: money,
-});
+export const extensionSchema = z
+  .object({
+    name: z.string().trim().max(60),
+    addDeduct: z.enum(ADJUSTMENT_DIRECTIONS),
+    type: z.enum(ADJUSTMENT_TYPES),
+    value: money.optional(),
+  })
+  .superRefine((row, ctx) => {
+    const isEmpty = !row.name && (row.value === undefined || row.value === 0);
+    if (isEmpty) return; // empty row → dropped later
+    if (!row.name) ctx.addIssue({ code: "custom", path: ["name"], message: "Name is required" });
+    if (row.value === undefined) {
+      ctx.addIssue({ code: "custom", path: ["value"], message: "Enter a value" });
+    } else if (row.type === "PERCENTAGE" && row.value > 100) {
+      ctx.addIssue({ code: "custom", path: ["value"], message: "Percentage cannot exceed 100" });
+    }
+  });
 
 export type ExtensionInput = z.infer<typeof extensionSchema>;
 
@@ -69,8 +150,8 @@ export const createInvoiceSchema = z
       .regex(/^[A-Za-z0-9#/_-]+$/, "Only letters, numbers and # / _ - are allowed"),
     invoiceReference: z.string().trim().max(64).optional().or(z.literal("")),
     currency: z.enum(CURRENCIES),
-    invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Select an invoice date"),
-    dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Select a due date"),
+    invoiceDate: dateField("Select an invoice date"),
+    dueDate: dateField("Select a due date"),
     description: z.string().trim().max(500).optional().or(z.literal("")),
 
     // Single line item
@@ -125,10 +206,16 @@ export const createInvoiceSchema = z
     customFields: z.array(customFieldSchema).optional(),
     itemCustomFields: z.array(customFieldSchema).optional(),
   })
-  .refine((v) => v.dueDate >= v.invoiceDate, {
-    message: "Due date cannot be before the invoice date",
-    path: ["dueDate"],
-  })
+  .refine(
+    (v) =>
+      // Only compare once both are real dates, so we don't stack a spurious
+      // ordering error on top of a format/calendar error. The due date may be
+      // on or after the invoice date (equal is allowed).
+      !isRealCalendarDate(v.invoiceDate) ||
+      !isRealCalendarDate(v.dueDate) ||
+      v.dueDate >= v.invoiceDate,
+    { message: "Due date cannot be before the invoice date", path: ["dueDate"] },
+  )
   .superRefine((v, ctx) => {
     // Bank account is all-or-nothing (see field comment above).
     const bank = {

@@ -42,6 +42,24 @@ describe("createInvoiceSchema", () => {
     }
   });
 
+  it("accepts a due date equal to the invoice date", () => {
+    const result = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      invoiceDate: "2026-07-07",
+      dueDate: "2026-07-07",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a due date after the invoice date", () => {
+    const result = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      invoiceDate: "2026-07-07",
+      dueDate: "2026-07-08",
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("rejects a non-positive quantity", () => {
     const result = createInvoiceSchema.safeParse({ ...validInvoice, quantity: 0 });
     expect(result.success).toBe(false);
@@ -89,6 +107,72 @@ describe("createInvoiceSchema", () => {
       bankAccountName: "John Terry",
       bankSortCode: "09-01-01",
       bankAccountNumber: "12345678",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  // --- dates ---
+  it("rejects an impossible calendar date", () => {
+    const result = createInvoiceSchema.safeParse({ ...validInvoice, invoiceDate: "2026-13-45" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.path[0] === "invoiceDate")).toBe(true);
+    }
+  });
+
+  it("rejects a year outside the accepted bounds", () => {
+    expect(createInvoiceSchema.safeParse({ ...validInvoice, invoiceDate: "1999-01-01", dueDate: "1999-02-01" }).success).toBe(false);
+    expect(createInvoiceSchema.safeParse({ ...validInvoice, invoiceDate: "2101-01-01", dueDate: "2101-02-01" }).success).toBe(false);
+  });
+
+  // --- optional rows: drop empty, flag partial ---
+  it("treats fully-empty optional rows as absent (valid)", () => {
+    const result = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      itemExtensions: [{ name: "", addDeduct: "ADD", type: "PERCENTAGE", value: 0 }],
+      customFields: [{ key: "", value: "" }],
+      documents: [{ documentName: "", documentUrl: "" }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("flags a partially-filled document row", () => {
+    const result = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      documents: [{ documentName: "Bill", documentUrl: "" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a document URL that is not http(s)", () => {
+    const result = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      documents: [{ documentName: "Bill", documentUrl: "ftp://example.com/x" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("flags a custom-field value with no key", () => {
+    const result = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      customFields: [{ key: "", value: "orphan" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  // --- percentage cap ---
+  it("rejects a PERCENTAGE adjustment above 100", () => {
+    const result = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      itemExtensions: [{ name: "vat", addDeduct: "ADD", type: "PERCENTAGE", value: 150 }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("allows a FIXED_VALUE adjustment above 100 (only percentages are capped)", () => {
+    const result = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      itemExtensions: [{ name: "fee", addDeduct: "ADD", type: "FIXED_VALUE", value: 500 }],
     });
     expect(result.success).toBe(true);
   });
