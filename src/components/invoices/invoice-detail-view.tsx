@@ -244,9 +244,6 @@ function Detail({ invoice }: { invoice: InvoiceDetail }) {
                 <Detail.Field label="Invoice date" value={formatDate(invoice.invoiceDate)} inline />
                 <Detail.Field label="Due date" value={formatDate(invoice.dueDate)} inline />
                 <Detail.Field label="Currency" value={invoice.currency} inline />
-                {invoice.description && (
-                  <Detail.Field label="Description" value={invoice.description} inline />
-                )}
               </div>
               <div className="space-y-2 border-t border-border pt-4">
                 <Row label="Subtotal" value={money(invoice.totals.subtotal)} />
