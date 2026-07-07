@@ -140,13 +140,8 @@ export const createInvoiceSchema = z
       .trim()
       .regex(/^\+?[0-9]{7,15}$/, "Enter a valid phone number (7–15 digits, optional +)"),
 
-    // Invoice header
-    invoiceNumber: z
-      .string()
-      .trim()
-      .min(3, "Invoice number is required")
-      .max(64)
-      .regex(/^[A-Za-z0-9#/_-]+$/, "Only letters, numbers and # / _ - are allowed"),
+    // Invoice header. The invoice number is intentionally not collected — the
+    // backend generates and stores it.
     invoiceReference: z.string().trim().max(64).optional().or(z.literal("")),
     currency: z.enum(CURRENCIES),
     invoiceDate: dateField("Select an invoice date"),

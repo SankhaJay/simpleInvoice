@@ -13,7 +13,7 @@ import {
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Loader2, Plus, Save, Sparkles, Trash2 } from "lucide-react";
+import { Loader2, Plus, Save, Trash2 } from "lucide-react";
 import {
   createInvoiceSchema,
   computeInvoiceTotals,
@@ -24,9 +24,10 @@ import {
   ADJUSTMENT_TYPES,
   type CreateInvoiceInput,
 } from "@/schemas/invoice.schema";
-import { defaultInvoiceValues, suggestInvoiceNumber } from "@/lib/invoice-defaults";
+import { defaultInvoiceValues, invoiceDetailToFormValues } from "@/lib/invoice-defaults";
 import { formatCurrency } from "@/lib/format";
 import { useCreateInvoice } from "@/hooks/use-create-invoice";
+import { useInvoice } from "@/hooks/use-invoice";
 import { ApiClientError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,47 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export function InvoiceForm() {
+export function InvoiceForm({ duplicateFrom }: { duplicateFrom?: string }) {
+  // When duplicating, fetch the source invoice; the form body then MOUNTS with
+  // the copied values as its defaults. Mounting (vs. a post-mount `reset`) is
+  // what makes controlled fields — the currency and unit selects — populate
+  // reliably.
+  const source = useInvoice(duplicateFrom ?? "");
+  const notified = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!duplicateFrom || notified.current) return;
+    if (source.data) {
+      notified.current = true;
+      toast.info("Invoice copied", {
+        description: "Review the details and adjust anything before creating.",
+      });
+    } else if (source.isError) {
+      notified.current = true;
+      toast.error("Couldn’t load the invoice to copy — starting from a blank form.");
+    }
+  }, [duplicateFrom, source.data, source.isError]);
+
+  const initialValues = React.useMemo(
+    () =>
+      duplicateFrom && source.data
+        ? invoiceDetailToFormValues(source.data)
+        : defaultInvoiceValues(),
+    [duplicateFrom, source.data],
+  );
+
+  if (duplicateFrom && source.isLoading) {
+    return (
+      <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-16 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" /> Loading invoice to copy…
+      </div>
+    );
+  }
+
+  return <InvoiceFormBody key={duplicateFrom ?? "new"} defaultValues={initialValues} />;
+}
+
+function InvoiceFormBody({ defaultValues }: { defaultValues: CreateInvoiceInput }) {
   const router = useRouter();
   const createInvoice = useCreateInvoice();
 
@@ -49,12 +90,11 @@ export function InvoiceForm() {
     register,
     handleSubmit,
     control,
-    setValue,
     setError,
     formState: { errors },
   } = useForm<CreateInvoiceInput>({
     resolver: zodResolver(createInvoiceSchema),
-    defaultValues: defaultInvoiceValues(),
+    defaultValues,
     mode: "onBlur",
   });
 
@@ -151,20 +191,6 @@ export function InvoiceForm() {
             <CardDescription>Reference, currency and dates.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Field label="Invoice number" error={errors.invoiceNumber?.message} htmlFor="invoiceNumber">
-              <div className="flex gap-2">
-                <Input id="invoiceNumber" {...register("invoiceNumber")} aria-invalid={!!errors.invoiceNumber} />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  title="Suggest a number"
-                  onClick={() => setValue("invoiceNumber", suggestInvoiceNumber(), { shouldValidate: true })}
-                >
-                  <Sparkles />
-                </Button>
-              </div>
-            </Field>
             <Field label="Reference (optional)" error={errors.invoiceReference?.message} htmlFor="invoiceReference">
               <Input id="invoiceReference" placeholder="#PO-1234" {...register("invoiceReference")} />
             </Field>
@@ -188,7 +214,6 @@ export function InvoiceForm() {
                 )}
               />
             </Field>
-            <div className="hidden sm:block" />
             <Field label="Invoice date" error={errors.invoiceDate?.message} htmlFor="invoiceDate">
               <Input id="invoiceDate" type="date" {...register("invoiceDate")} aria-invalid={!!errors.invoiceDate} />
             </Field>
