@@ -20,7 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { InvoiceStatusBadge } from "@/components/invoices/invoice-status-badge";
-import type { InvoiceDetail } from "@/types/invoice";
+import type { InvoiceDetail, InvoiceItemDetail } from "@/types/invoice";
 
 export function InvoiceDetailView({ id }: { id: string }) {
   const router = useRouter();
@@ -93,7 +93,8 @@ function Detail({ invoice }: { invoice: InvoiceDetail }) {
               <CardTitle>Line items</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="rounded-lg border border-border">
+              {/* Tablet / desktop: table (unchanged) */}
+              <div className="hidden rounded-lg border border-border md:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -111,21 +112,9 @@ function Detail({ invoice }: { invoice: InvoiceDetail }) {
                           {item.description && (
                             <p className="text-sm text-muted-foreground">{item.description}</p>
                           )}
-                          {item.extensions.length > 0 && (
-                            <ul className="mt-1 space-y-0.5">
-                              {item.extensions.map((ext, j) => (
-                                <li key={j} className="text-xs text-muted-foreground">
-                                  {ext.addDeduct === "DEDUCT" ? "−" : "+"} {ext.name}:{" "}
-                                  {ext.type === "PERCENTAGE" ? `${ext.value}%` : money(ext.value)}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                          {item.customFields.length > 0 && (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {item.customFields.map((f) => `${f.key}: ${f.value}`).join(" · ")}
-                            </p>
-                          )}
+                          <div className="mt-1">
+                            <ItemExtras item={item} money={money} />
+                          </div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {item.quantity} {item.itemUOM}
@@ -139,6 +128,30 @@ function Detail({ invoice }: { invoice: InvoiceDetail }) {
                   </TableBody>
                 </Table>
               </div>
+
+              {/* Mobile: one stacked card per line item */}
+              <ul className="space-y-3 md:hidden">
+                {invoice.items.map((item, i) => (
+                  <li key={i} className="space-y-3 rounded-lg border border-border p-4">
+                    <div>
+                      <p className="font-medium">{item.itemName}</p>
+                      {item.description && (
+                        <p className="text-sm text-muted-foreground">{item.description}</p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Row label="Quantity" value={`${item.quantity} ${item.itemUOM}`} />
+                      <Row label="Rate" value={money(item.rate)} />
+                      <Row label="Amount" value={money(item.amount)} strong />
+                    </div>
+                    {(item.extensions.length > 0 || item.customFields.length > 0) && (
+                      <div className="space-y-0.5 border-t border-border pt-2">
+                        <ItemExtras item={item} money={money} />
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
             </CardContent>
           </Card>
 
@@ -247,6 +260,37 @@ function Detail({ invoice }: { invoice: InvoiceDetail }) {
           </Card>
         </div>
       </div>
+    </>
+  );
+}
+
+/** A line item's adjustments (tax/discount) and custom fields — shared by the
+ *  desktop table cell and the mobile stacked card so the markup stays in sync. */
+function ItemExtras({
+  item,
+  money,
+}: {
+  item: InvoiceItemDetail;
+  money: (n: number) => string;
+}) {
+  if (item.extensions.length === 0 && item.customFields.length === 0) return null;
+  return (
+    <>
+      {item.extensions.length > 0 && (
+        <ul className="space-y-0.5">
+          {item.extensions.map((ext, j) => (
+            <li key={j} className="text-xs text-muted-foreground">
+              {ext.addDeduct === "DEDUCT" ? "−" : "+"} {ext.name}:{" "}
+              {ext.type === "PERCENTAGE" ? `${ext.value}%` : money(ext.value)}
+            </li>
+          ))}
+        </ul>
+      )}
+      {item.customFields.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {item.customFields.map((f) => `${f.key}: ${f.value}`).join(" · ")}
+        </p>
+      )}
     </>
   );
 }
