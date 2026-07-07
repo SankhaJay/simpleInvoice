@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { getSession, isSessionValid } from "@/lib/session";
 import { createInvoice, fetchInvoices } from "@/lib/upstream";
+import { withUpstreamAuth } from "@/lib/upstream-auth";
 import { UpstreamError } from "@/lib/http";
 import { invoiceQuerySchema } from "@/schemas/invoice-query.schema";
 import { createInvoiceSchema } from "@/schemas/invoice.schema";
@@ -23,10 +24,7 @@ export async function GET(request: NextRequest) {
   if (!parsed.success) return Errors.validation(fieldErrors(parsed.error));
 
   try {
-    const page = await fetchInvoices(parsed.data, {
-      accessToken: session.accessToken,
-      orgToken: session.orgToken,
-    });
+    const page = await withUpstreamAuth(session, (auth) => fetchInvoices(parsed.data, auth));
     return apiOk(page);
   } catch (err) {
     if (err instanceof UpstreamError) return Errors.upstream(err.status, err.message);
@@ -51,10 +49,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return Errors.validation(fieldErrors(parsed.error));
 
   try {
-    const result = await createInvoice(parsed.data, {
-      accessToken: session.accessToken,
-      orgToken: session.orgToken,
-    });
+    const result = await withUpstreamAuth(session, (auth) => createInvoice(parsed.data, auth));
     return apiOk(result, { status: 201 });
   } catch (err) {
     if (err instanceof UpstreamError) return Errors.upstream(err.status, err.message);
