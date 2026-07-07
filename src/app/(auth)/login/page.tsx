@@ -46,7 +46,7 @@ export default async function LoginPage({
         </Card>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          Your session is protected with encrypted, httpOnly cookies.
+          Don&apos;t worry. Your data is protected.
         </p>
       </div>
     </main>

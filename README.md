@@ -83,9 +83,11 @@ All variables are **server‑only** (no `NEXT_PUBLIC_` prefix), so none are inli
 | `npm start`              | Serve the production build.                      |
 | `npm run lint`           | ESLint.                                          |
 | `npm run typecheck`      | `tsc --noEmit`.                                  |
-| `npm test`               | Run the Vitest suite once.                       |
+| `npm test`               | Run the Vitest unit/integration suite once.      |
 | `npm run test:watch`     | Vitest in watch mode.                            |
 | `npm run test:coverage`  | Vitest with a V8 coverage report.                |
+| `npm run test:e2e`       | Playwright end-to-end tests (spins up app + mock upstream). |
+| `npm run test:e2e:ui`    | Playwright in interactive UI mode.               |
 | `npm run format`         | Prettier write.                                  |
 
 ---
@@ -143,16 +145,28 @@ This solution treats the assessment's security guidance as first‑class require
 
 ## Testing
 
-50 tests run under Vitest with Testing Library and **MSW** (upstream calls are mocked, never hitting the network):
+Two layers, both runnable without any real credentials.
 
-- **Schemas** — invoice + login + query validation and `computeInvoiceTotals`.
-- **Security helpers** — CSRF token/origin checks, rate‑limit windows.
-- **Upstream client** — request→payload mapping, response normalisation, and HTTP behaviours (token exchange, profile, list) via MSW.
-- **Components** — login‑form validation & a11y, invoice table (loading/empty/rows), status badge, formatting.
+**Unit / integration** — Vitest + Testing Library + **MSW** (upstream calls mocked, never hitting the network):
+
+- **Schemas** — invoice + login + query validation, `computeInvoiceTotals`, and the duplicate‑invoice mapper.
+- **Security helpers** — CSRF token/origin checks, rate‑limit windows, silent token‑refresh recovery.
+- **Upstream client** — request→payload mapping, response normalisation, and HTTP behaviours (token exchange, refresh, profile, list, detail) via MSW.
+- **Components** — login‑form validation & a11y, invoice table (loading/empty/rows/navigation), status badge, copy button, formatting.
 
 ```bash
 npm test              # run once
 npm run test:coverage # with coverage
+```
+
+**End‑to‑end** — Playwright drives the **real app in a browser** (login, sealed session, CSRF, BFF, routing, forms), while a small local mock stands in for the 101 Digital upstream ([`e2e/mock-server.mjs`](e2e/mock-server.mjs)). This keeps the E2E suite deterministic, CI‑friendly and secret‑free. It logs in once and reuses the session (via Playwright `storageState`) so it doesn't trip the login rate limiter.
+
+- **Auth** — sign in, invalid credentials, route protection, sign out.
+- **Invoices** — list, search, open detail, create end‑to‑end, and form validation.
+
+```bash
+npm run test:e2e      # headless
+npm run test:e2e:ui   # interactive
 ```
 
 ---
