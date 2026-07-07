@@ -303,12 +303,12 @@ export function toUpstreamInvoicePayload(input: CreateInvoiceInput) {
 /** Map adjustment rows to the upstream `extensions` shape, dropping unnamed rows. */
 function buildExtensions(extensions: CreateInvoiceInput["itemExtensions"]) {
   return (extensions ?? [])
-    .filter((e) => e.name.trim())
+    .filter((e) => (e.value ?? 0) > 0)
     .map((e) => ({
       addDeduct: e.addDeduct,
       type: e.type,
       value: e.value ?? 0,
-      name: e.name.trim(),
+      name: e.name,
     }));
 }
 

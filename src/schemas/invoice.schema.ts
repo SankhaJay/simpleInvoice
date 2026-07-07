@@ -94,30 +94,29 @@ export const documentSchema = z
     }
   });
 
-/** Adjustment direction and type (upstream `extensions[].addDeduct` / `.type`). */
+/** Adjustment name, direction and type (upstream `extensions[]`). */
+export const ADJUSTMENT_NAMES = ["tax", "discount"] as const;
 export const ADJUSTMENT_DIRECTIONS = ["ADD", "DEDUCT"] as const;
 export const ADJUSTMENT_TYPES = ["FIXED_VALUE", "PERCENTAGE"] as const;
 
 /**
- * A repeatable line-item adjustment (upstream `extensions[]`). Supports the full
- * matrix — any name, ADD or DEDUCT, FIXED_VALUE or PERCENTAGE. A fully-empty row
- * (no name, no value) is allowed and dropped; otherwise name + value are required
- * and a PERCENTAGE value is capped at 100.
+ * A repeatable line-item adjustment (upstream `extensions[]`). The `name` is
+ * limited to the two kinds the API documents (tax / discount) so we never push
+ * an unrecognised adjustment; direction (ADD/DEDUCT) and type (FIXED/PERCENTAGE)
+ * stay free per the API samples. A row with no positive amount is treated as
+ * absent and dropped on submit; a PERCENTAGE value is capped at 100.
  */
 export const extensionSchema = z
   .object({
-    name: z.string().trim().max(60),
+    name: z.enum(ADJUSTMENT_NAMES),
     addDeduct: z.enum(ADJUSTMENT_DIRECTIONS),
     type: z.enum(ADJUSTMENT_TYPES),
     value: money.optional(),
   })
   .superRefine((row, ctx) => {
-    const isEmpty = !row.name && (row.value === undefined || row.value === 0);
-    if (isEmpty) return; // empty row → dropped later
-    if (!row.name) ctx.addIssue({ code: "custom", path: ["name"], message: "Name is required" });
-    if (row.value === undefined) {
-      ctx.addIssue({ code: "custom", path: ["value"], message: "Enter a value" });
-    } else if (row.type === "PERCENTAGE" && row.value > 100) {
+    // No amount → the row is treated as empty and dropped before submit.
+    if (row.value === undefined || row.value === 0) return;
+    if (row.type === "PERCENTAGE" && row.value > 100) {
       ctx.addIssue({ code: "custom", path: ["value"], message: "Percentage cannot exceed 100" });
     }
   });

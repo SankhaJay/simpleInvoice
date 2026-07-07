@@ -78,15 +78,23 @@ describe("createInvoiceSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("accepts adjustments across the full add/deduct × fixed/percentage matrix", () => {
+  it("accepts tax/discount adjustments across the add/deduct × fixed/percentage matrix", () => {
     const result = createInvoiceSchema.safeParse({
       ...validInvoice,
       itemExtensions: [
-        { name: "surcharge", addDeduct: "ADD", type: "FIXED_VALUE", value: 10 },
-        { name: "loyalty", addDeduct: "DEDUCT", type: "PERCENTAGE", value: 5 },
+        { name: "tax", addDeduct: "ADD", type: "FIXED_VALUE", value: 10 },
+        { name: "discount", addDeduct: "DEDUCT", type: "PERCENTAGE", value: 5 },
       ],
     });
     expect(result.success).toBe(true);
+  });
+
+  it("rejects an adjustment name outside tax/discount", () => {
+    const result = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      itemExtensions: [{ name: "surcharge", addDeduct: "ADD", type: "FIXED_VALUE", value: 10 }],
+    });
+    expect(result.success).toBe(false);
   });
 
   it("requires the full bank block once any bank field is entered", () => {
@@ -129,7 +137,7 @@ describe("createInvoiceSchema", () => {
   it("treats fully-empty optional rows as absent (valid)", () => {
     const result = createInvoiceSchema.safeParse({
       ...validInvoice,
-      itemExtensions: [{ name: "", addDeduct: "ADD", type: "PERCENTAGE", value: 0 }],
+      itemExtensions: [{ name: "tax", addDeduct: "ADD", type: "PERCENTAGE", value: undefined }],
       customFields: [{ key: "", value: "" }],
       documents: [{ documentName: "", documentUrl: "" }],
     });
@@ -164,7 +172,7 @@ describe("createInvoiceSchema", () => {
   it("rejects a PERCENTAGE adjustment above 100", () => {
     const result = createInvoiceSchema.safeParse({
       ...validInvoice,
-      itemExtensions: [{ name: "vat", addDeduct: "ADD", type: "PERCENTAGE", value: 150 }],
+      itemExtensions: [{ name: "tax", addDeduct: "ADD", type: "PERCENTAGE", value: 150 }],
     });
     expect(result.success).toBe(false);
   });
@@ -172,7 +180,7 @@ describe("createInvoiceSchema", () => {
   it("allows a FIXED_VALUE adjustment above 100 (only percentages are capped)", () => {
     const result = createInvoiceSchema.safeParse({
       ...validInvoice,
-      itemExtensions: [{ name: "fee", addDeduct: "ADD", type: "FIXED_VALUE", value: 500 }],
+      itemExtensions: [{ name: "discount", addDeduct: "DEDUCT", type: "FIXED_VALUE", value: 500 }],
     });
     expect(result.success).toBe(true);
   });

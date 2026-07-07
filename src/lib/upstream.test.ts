@@ -42,18 +42,18 @@ describe("toUpstreamInvoicePayload", () => {
     });
   });
 
-  it("maps adjustments to item-level extensions (full matrix, named)", () => {
+  it("maps tax/discount adjustments to item-level extensions and drops amount-less rows", () => {
     const payload = toUpstreamInvoicePayload({
       ...baseInput,
       itemExtensions: [
         { name: "tax", addDeduct: "ADD", type: "FIXED_VALUE", value: 10 },
-        { name: "loyalty", addDeduct: "DEDUCT", type: "PERCENTAGE", value: 5 },
-        { name: "  ", addDeduct: "ADD", type: "PERCENTAGE", value: 1 }, // dropped (no name)
+        { name: "discount", addDeduct: "DEDUCT", type: "PERCENTAGE", value: 5 },
+        { name: "tax", addDeduct: "ADD", type: "PERCENTAGE", value: undefined }, // dropped (no amount)
       ],
     });
     expect(payload.invoices[0].items[0].extensions).toEqual([
       { addDeduct: "ADD", type: "FIXED_VALUE", value: 10, name: "tax" },
-      { addDeduct: "DEDUCT", type: "PERCENTAGE", value: 5, name: "loyalty" },
+      { addDeduct: "DEDUCT", type: "PERCENTAGE", value: 5, name: "discount" },
     ]);
   });
 
