@@ -199,43 +199,37 @@ function authHeaders(auth: UpstreamAuth): Record<string, string> {
 }
 
 /**
- * Map our flat form input to the nested 101 Digital create-invoice body,
- * translating tax/discount into upstream `extensions`.
+ * Map our flat form input to the nested 101 Digital create-invoice body.
+ * Every optional block (bank account, billing address, documents, custom
+ * fields) is included only when the user actually provided data, so a minimal
+ * invoice stays minimal on the wire.
  */
 export function toUpstreamInvoicePayload(input: CreateInvoiceInput) {
-  const extensions: Array<Record<string, unknown>> = [];
-  if (input.taxPercentage && input.taxPercentage > 0) {
-    extensions.push({
-      addDeduct: "ADD",
-      type: "PERCENTAGE",
-      value: input.taxPercentage,
-      name: "tax",
-    });
-  }
-  if (input.discountValue && input.discountValue > 0) {
-    extensions.push({
-      addDeduct: "DEDUCT",
-      type: "FIXED_VALUE",
-      value: input.discountValue,
-      name: "discount",
-    });
-  }
+  const bankAccount = buildBankAccount(input);
+  const address = buildAddress(input);
+  const documents = buildDocuments(input.documents);
+  const invoiceCustomFields = buildCustomFields(input.customFields);
+  const itemCustomFields = buildCustomFields(input.itemCustomFields);
+  const itemExtensions = buildExtensions(input.itemExtensions);
 
   return {
     invoices: [
       {
+        ...(bankAccount ? { bankAccount } : {}),
         customer: {
           firstName: input.customerFirstName,
           lastName: input.customerLastName,
           contact: { email: input.customerEmail, mobileNumber: input.customerMobile },
+          ...(address ? { addresses: [address] } : {}),
         },
+        ...(documents.length ? { documents } : {}),
         invoiceReference: input.invoiceReference || undefined,
         invoiceNumber: input.invoiceNumber,
         currency: input.currency,
         invoiceDate: input.invoiceDate,
         dueDate: input.dueDate,
         description: input.description || undefined,
-        ...(extensions.length ? { extensions } : {}),
+        ...(invoiceCustomFields.length ? { customFields: invoiceCustomFields } : {}),
         items: [
           {
             itemReference: input.invoiceNumber,
@@ -244,11 +238,77 @@ export function toUpstreamInvoicePayload(input: CreateInvoiceInput) {
             quantity: input.quantity,
             rate: input.rate,
             itemUOM: input.itemUOM,
+            ...(itemExtensions.length ? { extensions: itemExtensions } : {}),
+            ...(itemCustomFields.length ? { customFields: itemCustomFields } : {}),
           },
         ],
       },
     ],
   };
+}
+
+/** Map adjustment rows to the upstream `extensions` shape, dropping unnamed rows. */
+function buildExtensions(extensions: CreateInvoiceInput["itemExtensions"]) {
+  return (extensions ?? [])
+    .filter((e) => e.name.trim())
+    .map((e) => ({
+      addDeduct: e.addDeduct,
+      type: e.type,
+      value: e.value,
+      name: e.name.trim(),
+    }));
+}
+
+/** Build the payee bank account block, or undefined when nothing meaningful is set. */
+function buildBankAccount(input: CreateInvoiceInput) {
+  if (!input.bankId && !input.bankAccountNumber && !input.bankSortCode && !input.bankAccountName) {
+    return undefined;
+  }
+  return {
+    // The upstream API requires a non-empty bankId when a bankAccount is present.
+    bankId: input.bankId || undefined,
+    sortCode: input.bankSortCode || undefined,
+    accountNumber: input.bankAccountNumber || undefined,
+    accountName: input.bankAccountName || undefined,
+  };
+}
+
+/** Build the billing address, or undefined when no address field is filled. */
+function buildAddress(input: CreateInvoiceInput) {
+  const parts = [
+    input.addressPremise,
+    input.addressCity,
+    input.addressCounty,
+    input.addressPostcode,
+    input.addressCountryCode,
+  ];
+  if (parts.every((p) => !p)) return undefined;
+  return {
+    premise: input.addressPremise || undefined,
+    city: input.addressCity || undefined,
+    county: input.addressCounty || undefined,
+    postcode: input.addressPostcode || undefined,
+    countryCode: input.addressCountryCode ? input.addressCountryCode.toUpperCase() : undefined,
+    addressType: "BILLING",
+  };
+}
+
+/** Map document rows to the upstream shape, generating a documentId per row. */
+function buildDocuments(documents: CreateInvoiceInput["documents"]) {
+  return (documents ?? [])
+    .filter((d) => d.documentName && d.documentUrl)
+    .map((d) => ({
+      documentId: crypto.randomUUID(),
+      documentName: d.documentName,
+      documentUrl: d.documentUrl,
+    }));
+}
+
+/** Map key/value rows to the upstream shape, dropping empty keys. */
+function buildCustomFields(fields: CreateInvoiceInput["customFields"]) {
+  return (fields ?? [])
+    .filter((f) => f.key.trim())
+    .map((f) => ({ key: f.key.trim(), value: f.value ?? "" }));
 }
 
 /** Flatten an upstream invoice into the stable shape the UI renders. */

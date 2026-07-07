@@ -39,22 +39,97 @@ describe("toUpstreamInvoicePayload", () => {
     });
   });
 
-  it("maps tax and discount to upstream extensions", () => {
+  it("maps adjustments to item-level extensions (full matrix, named)", () => {
     const payload = toUpstreamInvoicePayload({
       ...baseInput,
-      taxPercentage: 10,
-      discountValue: 25,
+      itemExtensions: [
+        { name: "tax", addDeduct: "ADD", type: "FIXED_VALUE", value: 10 },
+        { name: "loyalty", addDeduct: "DEDUCT", type: "PERCENTAGE", value: 5 },
+        { name: "  ", addDeduct: "ADD", type: "PERCENTAGE", value: 1 }, // dropped (no name)
+      ],
     });
-    const ext = payload.invoices[0].extensions;
-    expect(ext).toEqual([
-      { addDeduct: "ADD", type: "PERCENTAGE", value: 10, name: "tax" },
-      { addDeduct: "DEDUCT", type: "FIXED_VALUE", value: 25, name: "discount" },
+    expect(payload.invoices[0].items[0].extensions).toEqual([
+      { addDeduct: "ADD", type: "FIXED_VALUE", value: 10, name: "tax" },
+      { addDeduct: "DEDUCT", type: "PERCENTAGE", value: 5, name: "loyalty" },
     ]);
   });
 
-  it("omits extensions when no tax/discount given", () => {
+  it("puts no extensions at the invoice level and omits them when none given", () => {
     const payload = toUpstreamInvoicePayload(baseInput);
     expect(payload.invoices[0]).not.toHaveProperty("extensions");
+    expect(payload.invoices[0].items[0]).not.toHaveProperty("extensions");
+  });
+
+  it("keeps a minimal invoice minimal (no optional blocks)", () => {
+    const inv = toUpstreamInvoicePayload(baseInput).invoices[0];
+    expect(inv).not.toHaveProperty("bankAccount");
+    expect(inv).not.toHaveProperty("documents");
+    expect(inv).not.toHaveProperty("customFields");
+    expect(inv.customer).not.toHaveProperty("addresses");
+  });
+
+  it("includes the bank account (with the required bankId) when provided", () => {
+    const inv = toUpstreamInvoicePayload({
+      ...baseInput,
+      bankId: "bank-123",
+      bankAccountName: "John Terry",
+      bankSortCode: "09-01-01",
+      bankAccountNumber: "12345678",
+    }).invoices[0];
+    expect(inv.bankAccount).toEqual({
+      bankId: "bank-123",
+      sortCode: "09-01-01",
+      accountNumber: "12345678",
+      accountName: "John Terry",
+    });
+  });
+
+  it("includes a billing address (uppercasing the country code) when provided", () => {
+    const inv = toUpstreamInvoicePayload({
+      ...baseInput,
+      addressPremise: "CT11",
+      addressCity: "London",
+      addressCountryCode: "gb",
+    }).invoices[0];
+    expect(inv.customer.addresses).toEqual([
+      {
+        premise: "CT11",
+        city: "London",
+        county: undefined,
+        postcode: undefined,
+        countryCode: "GB",
+        addressType: "BILLING",
+      },
+    ]);
+  });
+
+  it("maps documents with a generated documentId and drops empty rows", () => {
+    const inv = toUpstreamInvoicePayload({
+      ...baseInput,
+      documents: [
+        { documentName: "Bill", documentUrl: "https://example.com/bill.pdf" },
+        { documentName: "", documentUrl: "" },
+      ],
+    }).invoices[0];
+    expect(inv.documents).toHaveLength(1);
+    expect(inv.documents![0]).toMatchObject({
+      documentName: "Bill",
+      documentUrl: "https://example.com/bill.pdf",
+    });
+    expect(typeof inv.documents![0].documentId).toBe("string");
+  });
+
+  it("maps invoice- and item-level custom fields, dropping keyless rows", () => {
+    const inv = toUpstreamInvoicePayload({
+      ...baseInput,
+      customFields: [
+        { key: "PO", value: "1234" },
+        { key: "", value: "ignored" },
+      ],
+      itemCustomFields: [{ key: "VAT", value: "20%" }],
+    }).invoices[0];
+    expect(inv.customFields).toEqual([{ key: "PO", value: "1234" }]);
+    expect(inv.items[0].customFields).toEqual([{ key: "VAT", value: "20%" }]);
   });
 });
 

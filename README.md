@@ -190,7 +190,12 @@ src/proxy.ts                 Edge proxy: auth routing + nonce CSP
 
 ## Assumptions & notes
 
-- **Single line item per invoice**, per the brief. The form supports optional tax (%) and a fixed discount, mapped to upstream `extensions`.
+- **Single line item per invoice**, per the brief.
+- **Adjustments (`extensions`)** are a repeatable editor on the line item supporting the **full matrix** — any name, `ADD`/`DEDUCT`, `FIXED_VALUE`/`PERCENTAGE`, any value — and are mapped to **item‑level** `extensions`. The live summary computes additions/deductions generically.
+- **Full payload coverage.** Beyond the essentials, the create form exposes the rest of the upstream payload through optional, collapsed‑by‑default sections — **bank account** (payee), **billing address** (inline in Customer), **documents**, and **invoice/item custom fields**. Each block is sent only when filled, so a minimal invoice stays minimal on the wire.
+  - **Documents**: there is no document/upload service in the provided APIs, so the form captures a name + URL and the server generates the `documentId`.
+  - **Bank account** is all‑or‑nothing because the API requires a non‑empty `bankId` whenever a bank block is present.
 - **Upstream `status`** arrives as an array of `{ key, value }` flags; the UI surfaces the first active flag (e.g. `Due`, `Overdue`).
+- **Upstream `customer`** comes in two shapes (`{ name }` or `{ firstName, lastName }`); the list normalises both to a single display name.
 - **Rate limiting** is in‑memory (per instance) — appropriate for this assessment; a shared store (e.g. Redis) would be used for multi‑instance production. This is called out in the security doc.
 - The sandbox credentials in the brief are treated as **sensitive**: they live only in `.env.local` and the (git‑ignored) Postman environment. Committed `.example` files carry placeholders.

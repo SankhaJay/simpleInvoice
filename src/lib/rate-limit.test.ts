@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 describe("rateLimit", () => {
@@ -22,14 +22,17 @@ describe("rateLimit", () => {
   });
 
   it("resets after the window elapses", () => {
-    const key = `win-${Math.random()}`;
-    expect(rateLimit(key, { limit: 1, windowMs: 1 }).allowed).toBe(true);
-    // Busy-wait ~5ms so the 1ms window expires without relying on fake timers.
-    const start = Date.now();
-    while (Date.now() - start < 5) {
-      /* spin */
+    vi.useFakeTimers();
+    try {
+      const key = `win-${Math.random()}`;
+      const opts = { limit: 1, windowMs: 1000 };
+      expect(rateLimit(key, opts).allowed).toBe(true);
+      expect(rateLimit(key, opts).allowed).toBe(false); // window not yet elapsed
+      vi.advanceTimersByTime(1001);
+      expect(rateLimit(key, opts).allowed).toBe(true); // window reset
+    } finally {
+      vi.useRealTimers();
     }
-    expect(rateLimit(key, { limit: 1, windowMs: 1 }).allowed).toBe(true);
   });
 });
 

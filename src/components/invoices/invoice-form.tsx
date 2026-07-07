@@ -2,15 +2,25 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import {
+  Controller,
+  useForm,
+  useFieldArray,
+  useWatch,
+  type Control,
+  type FieldErrors,
+  type UseFormRegister,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Loader2, Save, Sparkles } from "lucide-react";
+import { Loader2, Plus, Save, Sparkles, Trash2 } from "lucide-react";
 import {
   createInvoiceSchema,
   computeInvoiceTotals,
   CURRENCIES,
   UOMS,
+  ADJUSTMENT_DIRECTIONS,
+  ADJUSTMENT_TYPES,
   type CreateInvoiceInput,
 } from "@/schemas/invoice.schema";
 import { defaultInvoiceValues, suggestInvoiceNumber } from "@/lib/invoice-defaults";
@@ -20,13 +30,8 @@ import { ApiClientError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import {
   Select,
   SelectContent,
@@ -54,15 +59,19 @@ export function InvoiceForm() {
 
   // Live total preview. `useWatch` subscribes without breaking React Compiler
   // memoization (unlike the `watch()` return value).
-  const [quantity, rate, taxPercentage, discountValue, currency] = useWatch({
+  const [quantity, rate, currency] = useWatch({
     control,
-    name: ["quantity", "rate", "taxPercentage", "discountValue", "currency"],
+    name: ["quantity", "rate", "currency"],
   });
+  const itemExtensions = useWatch({ control, name: "itemExtensions" });
   const totals = computeInvoiceTotals({
     quantity: Number(quantity) || 0,
     rate: Number(rate) || 0,
-    taxPercentage: Number(taxPercentage) || 0,
-    discountValue: Number(discountValue) || 0,
+    extensions: (itemExtensions ?? []).map((e) => ({
+      addDeduct: e.addDeduct,
+      type: e.type,
+      value: Number(e.value) || 0,
+    })),
   });
 
   async function onSubmit(values: CreateInvoiceInput) {
@@ -111,6 +120,25 @@ export function InvoiceForm() {
             </Field>
             <Field label="Mobile number" error={errors.customerMobile?.message} htmlFor="customerMobile">
               <Input id="customerMobile" placeholder="+6597594971" {...register("customerMobile")} aria-invalid={!!errors.customerMobile} />
+            </Field>
+
+            <p className="sm:col-span-2 mt-2 text-sm font-medium text-muted-foreground">
+              Billing address <span className="font-normal">(optional)</span>
+            </p>
+            <Field label="Premise / street" error={errors.addressPremise?.message} htmlFor="addressPremise" className="sm:col-span-2">
+              <Input id="addressPremise" placeholder="CT11, 123 High Street" {...register("addressPremise")} />
+            </Field>
+            <Field label="City" error={errors.addressCity?.message} htmlFor="addressCity">
+              <Input id="addressCity" {...register("addressCity")} />
+            </Field>
+            <Field label="County / region" error={errors.addressCounty?.message} htmlFor="addressCounty">
+              <Input id="addressCounty" {...register("addressCounty")} />
+            </Field>
+            <Field label="Postcode" error={errors.addressPostcode?.message} htmlFor="addressPostcode">
+              <Input id="addressPostcode" {...register("addressPostcode")} />
+            </Field>
+            <Field label="Country code (ISO)" error={errors.addressCountryCode?.message} htmlFor="addressCountryCode">
+              <Input id="addressCountryCode" placeholder="GB" maxLength={2} className="uppercase" {...register("addressCountryCode")} aria-invalid={!!errors.addressCountryCode} />
             </Field>
           </CardContent>
         </Card>
@@ -178,47 +206,89 @@ export function InvoiceForm() {
             <CardTitle>Line item</CardTitle>
             <CardDescription>A single item per invoice.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Field label="Item name" error={errors.itemName?.message} htmlFor="itemName">
-              <Input id="itemName" {...register("itemName")} aria-invalid={!!errors.itemName} />
-            </Field>
-            <Field label="Unit" error={errors.itemUOM?.message} htmlFor="itemUOM">
-              <Controller
-                control={control}
-                name="itemUOM"
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger id="itemUOM">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {UOMS.map((u) => (
-                        <SelectItem key={u} value={u}>
-                          {u}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </Field>
-            <Field label="Item description (optional)" error={errors.itemDescription?.message} htmlFor="itemDescription" className="sm:col-span-2">
-              <Input id="itemDescription" {...register("itemDescription")} />
-            </Field>
-            <Field label="Quantity" error={errors.quantity?.message} htmlFor="quantity">
-              <Input id="quantity" type="number" step="any" min="0" {...numberField("quantity")} aria-invalid={!!errors.quantity} />
-            </Field>
-            <Field label="Rate" error={errors.rate?.message} htmlFor="rate">
-              <Input id="rate" type="number" step="any" min="0" {...numberField("rate")} aria-invalid={!!errors.rate} />
-            </Field>
-            <Field label="Tax % (optional)" error={errors.taxPercentage?.message} htmlFor="taxPercentage">
-              <Input id="taxPercentage" type="number" step="any" min="0" max="100" {...numberField("taxPercentage")} aria-invalid={!!errors.taxPercentage} />
-            </Field>
-            <Field label="Discount (optional)" error={errors.discountValue?.message} htmlFor="discountValue">
-              <Input id="discountValue" type="number" step="any" min="0" {...numberField("discountValue")} aria-invalid={!!errors.discountValue} />
-            </Field>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Item name" error={errors.itemName?.message} htmlFor="itemName">
+                <Input id="itemName" {...register("itemName")} aria-invalid={!!errors.itemName} />
+              </Field>
+              <Field label="Unit" error={errors.itemUOM?.message} htmlFor="itemUOM">
+                <Controller
+                  control={control}
+                  name="itemUOM"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger id="itemUOM">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {UOMS.map((u) => (
+                          <SelectItem key={u} value={u}>
+                            {u}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </Field>
+              <Field label="Item description (optional)" error={errors.itemDescription?.message} htmlFor="itemDescription" className="sm:col-span-2">
+                <Input id="itemDescription" {...register("itemDescription")} />
+              </Field>
+              <Field label="Quantity" error={errors.quantity?.message} htmlFor="quantity">
+                <Input id="quantity" type="number" step="any" min="0" {...numberField("quantity")} aria-invalid={!!errors.quantity} />
+              </Field>
+              <Field label="Rate" error={errors.rate?.message} htmlFor="rate">
+                <Input id="rate" type="number" step="any" min="0" {...numberField("rate")} aria-invalid={!!errors.rate} />
+              </Field>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium">Adjustments</p>
+              <p className="mb-3 text-sm text-muted-foreground">
+                Add taxes, discounts or surcharges — any combination of add/deduct and fixed/percentage.
+              </p>
+              <ExtensionsEditor control={control} register={register} errors={errors} />
+            </div>
           </CardContent>
         </Card>
+
+        {/* Optional, collapsed-by-default sections */}
+        <CollapsibleSection
+          title="Bank account"
+          description="Payee account for this invoice. Provide the full set or leave the section empty."
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Account name" error={errors.bankAccountName?.message} htmlFor="bankAccountName" className="sm:col-span-2">
+              <Input id="bankAccountName" placeholder="John Terry" {...register("bankAccountName")} aria-invalid={!!errors.bankAccountName} />
+            </Field>
+            <Field label="Sort code" error={errors.bankSortCode?.message} htmlFor="bankSortCode">
+              <Input id="bankSortCode" placeholder="09-01-01" {...register("bankSortCode")} aria-invalid={!!errors.bankSortCode} />
+            </Field>
+            <Field label="Account number" error={errors.bankAccountNumber?.message} htmlFor="bankAccountNumber">
+              <Input id="bankAccountNumber" placeholder="12345678" {...register("bankAccountNumber")} aria-invalid={!!errors.bankAccountNumber} />
+            </Field>
+            <Field label="Bank ID" error={errors.bankId?.message} htmlFor="bankId" className="sm:col-span-2">
+              <Input id="bankId" placeholder="Bank identifier from your organisation" {...register("bankId")} aria-invalid={!!errors.bankId} />
+            </Field>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Documents" description="Attach related document links to this invoice.">
+          <DocumentsEditor control={control} register={register} errors={errors} />
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Custom fields" description="Add arbitrary key/value metadata.">
+          <div className="space-y-6">
+            <div>
+              <p className="mb-2 text-sm font-medium text-muted-foreground">Invoice-level</p>
+              <KeyValueEditor name="customFields" control={control} register={register} errors={errors} addLabel="Add invoice field" />
+            </div>
+            <div>
+              <p className="mb-2 text-sm font-medium text-muted-foreground">Line-item-level</p>
+              <KeyValueEditor name="itemCustomFields" control={control} register={register} errors={errors} addLabel="Add item field" />
+            </div>
+          </div>
+        </CollapsibleSection>
       </div>
 
       {/* Summary rail */}
@@ -230,8 +300,8 @@ export function InvoiceForm() {
           </CardHeader>
           <CardContent className="space-y-3">
             <Row label="Subtotal" value={formatCurrency(totals.subtotal, currency)} />
-            <Row label="Tax" value={formatCurrency(totals.tax, currency)} />
-            <Row label="Discount" value={`- ${formatCurrency(totals.discount, currency)}`} />
+            <Row label="Additions" value={`+ ${formatCurrency(totals.additions, currency)}`} />
+            <Row label="Deductions" value={`- ${formatCurrency(totals.deductions, currency)}`} />
             <div className="border-t border-border pt-3">
               <Row label="Total" value={formatCurrency(totals.total, currency)} strong />
             </div>
@@ -258,6 +328,207 @@ export function InvoiceForm() {
         </Card>
       </div>
     </form>
+  );
+}
+
+const DIRECTION_LABELS: Record<(typeof ADJUSTMENT_DIRECTIONS)[number], string> = {
+  ADD: "Add",
+  DEDUCT: "Deduct",
+};
+const TYPE_LABELS: Record<(typeof ADJUSTMENT_TYPES)[number], string> = {
+  FIXED_VALUE: "Fixed",
+  PERCENTAGE: "Percentage",
+};
+
+/**
+ * Repeatable adjustment editor (`items[0].extensions`). Each row is a full
+ * combination: name, direction (Add/Deduct), type (Fixed/Percentage), value.
+ */
+function ExtensionsEditor({
+  control,
+  register,
+  errors,
+}: {
+  control: Control<CreateInvoiceInput>;
+  register: UseFormRegister<CreateInvoiceInput>;
+  errors: FieldErrors<CreateInvoiceInput>;
+}) {
+  const { fields, append, remove } = useFieldArray({ control, name: "itemExtensions" });
+  const rowErrors = errors.itemExtensions;
+
+  return (
+    <div className="space-y-3">
+      {fields.map((field, index) => (
+        <div key={field.id} className="flex flex-wrap items-start gap-2 rounded-lg border border-border p-3 sm:flex-nowrap">
+          <div className="min-w-[8rem] flex-1">
+            <Input placeholder="Name (e.g. VAT)" {...register(`itemExtensions.${index}.name`)} aria-label="Adjustment name" />
+            {rowErrors?.[index]?.name?.message && (
+              <p role="alert" className="mt-1 text-sm text-destructive">
+                {rowErrors[index]?.name?.message}
+              </p>
+            )}
+          </div>
+          <Controller
+            control={control}
+            name={`itemExtensions.${index}.addDeduct`}
+            render={({ field: f }) => (
+              <Select value={f.value} onValueChange={f.onChange}>
+                <SelectTrigger className="w-[7.5rem]" aria-label="Direction">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ADJUSTMENT_DIRECTIONS.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {DIRECTION_LABELS[d]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <Controller
+            control={control}
+            name={`itemExtensions.${index}.type`}
+            render={({ field: f }) => (
+              <Select value={f.value} onValueChange={f.onChange}>
+                <SelectTrigger className="w-[8.5rem]" aria-label="Type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ADJUSTMENT_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {TYPE_LABELS[t]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <div className="w-24">
+            <Input
+              type="number"
+              step="any"
+              min="0"
+              placeholder="Value"
+              aria-label="Value"
+              {...register(`itemExtensions.${index}.value`, {
+                setValueAs: (v) => (v === "" || v === null ? undefined : Number(v)),
+              })}
+            />
+            {rowErrors?.[index]?.value?.message && (
+              <p role="alert" className="mt-1 text-sm text-destructive">
+                {rowErrors[index]?.value?.message}
+              </p>
+            )}
+          </div>
+          <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} aria-label="Remove adjustment">
+            <Trash2 />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => append({ name: "", addDeduct: "ADD", type: "PERCENTAGE", value: 0 })}
+      >
+        <Plus /> Add adjustment
+      </Button>
+    </div>
+  );
+}
+
+/** Repeatable key/value editor bound to a `customFields`-shaped array field. */
+function KeyValueEditor({
+  name,
+  control,
+  register,
+  errors,
+  addLabel,
+}: {
+  name: "customFields" | "itemCustomFields";
+  control: Control<CreateInvoiceInput>;
+  register: UseFormRegister<CreateInvoiceInput>;
+  errors: FieldErrors<CreateInvoiceInput>;
+  addLabel: string;
+}) {
+  const { fields, append, remove } = useFieldArray({ control, name });
+  const rowErrors = errors[name];
+
+  return (
+    <div className="space-y-3">
+      {fields.map((field, index) => (
+        <div key={field.id} className="flex items-start gap-2">
+          <div className="flex-1">
+            <Input placeholder="Key" {...register(`${name}.${index}.key`)} aria-label="Key" />
+            {rowErrors?.[index]?.key?.message && (
+              <p role="alert" className="mt-1 text-sm text-destructive">
+                {rowErrors[index]?.key?.message}
+              </p>
+            )}
+          </div>
+          <div className="flex-1">
+            <Input placeholder="Value" {...register(`${name}.${index}.value`)} aria-label="Value" />
+          </div>
+          <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} aria-label="Remove field">
+            <Trash2 />
+          </Button>
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" onClick={() => append({ key: "", value: "" })}>
+        <Plus /> {addLabel}
+      </Button>
+    </div>
+  );
+}
+
+/** Repeatable document editor bound to the `documents` array field. */
+function DocumentsEditor({
+  control,
+  register,
+  errors,
+}: {
+  control: Control<CreateInvoiceInput>;
+  register: UseFormRegister<CreateInvoiceInput>;
+  errors: FieldErrors<CreateInvoiceInput>;
+}) {
+  const { fields, append, remove } = useFieldArray({ control, name: "documents" });
+  const rowErrors = errors.documents;
+
+  return (
+    <div className="space-y-3">
+      {fields.map((field, index) => (
+        <div key={field.id} className="flex items-start gap-2">
+          <div className="flex-1">
+            <Input placeholder="Document name" {...register(`documents.${index}.documentName`)} aria-label="Document name" />
+            {rowErrors?.[index]?.documentName?.message && (
+              <p role="alert" className="mt-1 text-sm text-destructive">
+                {rowErrors[index]?.documentName?.message}
+              </p>
+            )}
+          </div>
+          <div className="flex-1">
+            <Input placeholder="https://…" {...register(`documents.${index}.documentUrl`)} aria-label="Document URL" />
+            {rowErrors?.[index]?.documentUrl?.message && (
+              <p role="alert" className="mt-1 text-sm text-destructive">
+                {rowErrors[index]?.documentUrl?.message}
+              </p>
+            )}
+          </div>
+          <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} aria-label="Remove document">
+            <Trash2 />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => append({ documentName: "", documentUrl: "" })}
+      >
+        <Plus /> Add document
+      </Button>
+    </div>
   );
 }
 
