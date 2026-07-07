@@ -134,7 +134,8 @@ This solution treats the assessment's security guidance as first‑class require
 ## Feature tour
 
 - **Login** — client + server validated, friendly errors, encrypted session on success.
-- **Invoice list (landing)** — debounced search, status filter, date‑range filter, sortable columns, page‑size selector and pagination; all reflected in the URL. Loading skeletons, empty and error states.
+- **Invoice list (landing)** — debounced search, status filter, date‑range filter, sortable columns, page‑size selector and pagination; all reflected in the URL. Rows are clickable and open the detail view. Loading skeletons, empty and error states.
+- **Invoice detail** — click any invoice to see the full record at `/invoices/{id}`: line items with their adjustments, customer + billing address, bank account, documents, custom fields, and a totals breakdown (subtotal / tax / discount / paid / balance). Handles not‑found and error states.
 - **Create invoice** — grouped form (customer / details / line item), a live total preview (subtotal → tax → discount → total), an invoice‑number suggester, and a success toast + redirect on completion.
 - **Session** — sign‑out clears the session and cached data; protected routes redirect unauthenticated users to login.
 

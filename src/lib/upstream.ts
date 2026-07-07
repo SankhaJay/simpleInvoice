@@ -5,7 +5,9 @@ import type { CreateInvoiceInput } from "@/schemas/invoice.schema";
 import type { InvoiceQuery } from "@/schemas/invoice-query.schema";
 import type {
   Invoice,
+  InvoiceDetail,
   InvoicePage,
+  RawInvoiceDetail,
   UpstreamInvoice,
   UpstreamPaging,
 } from "@/types/invoice";
@@ -226,6 +228,25 @@ export async function createInvoice(
   };
 }
 
+/** Fetch a single invoice by id and normalise it into the detail shape. */
+export async function fetchInvoice(invoiceId: string, auth: UpstreamAuth): Promise<InvoiceDetail> {
+  const res = await fetchWithTimeout(
+    `${env.API_BASE_URL}/invoice-service/1.0.0/invoices/${encodeURIComponent(invoiceId)}`,
+    { headers: authHeaders(auth) },
+  );
+
+  // A 404 (missing) or 400 (malformed id) both mean "no such invoice" for a
+  // by-id lookup — surface them uniformly as not-found.
+  if (res.status === 404 || res.status === 400) {
+    throw new UpstreamError(404, "Invoice not found.");
+  }
+  if (!res.ok) throw new UpstreamError(res.status, "Could not load the invoice.");
+
+  const json = await parseJsonSafe<{ data?: RawInvoiceDetail }>(res);
+  if (!json?.data) throw new UpstreamError(404, "Invoice not found.");
+  return normalizeInvoiceDetail(json.data);
+}
+
 function authHeaders(auth: UpstreamAuth): Record<string, string> {
   return { Authorization: `Bearer ${auth.accessToken}`, "org-token": auth.orgToken };
 }
@@ -376,4 +397,79 @@ function resolveCustomerName(customer: UpstreamInvoice["customer"]): string {
     .filter(Boolean)
     .join(" ");
   return fromParts || "—";
+}
+
+/** Normalise the full `GET /invoices/{id}` payload into the UI detail shape. */
+export function normalizeInvoiceDetail(raw: RawInvoiceDetail): InvoiceDetail {
+  const activeStatus = raw.status?.find((s) => s.value)?.key ?? "Draft";
+  const address = raw.customer?.addresses?.[0];
+
+  return {
+    id: raw.invoiceId,
+    invoiceNumber: raw.invoiceNumber,
+    reference: raw.invoiceReference || raw.referenceNo || undefined,
+    status: activeStatus,
+    currency: raw.currency,
+    currencySymbol: raw.currencySymbol || raw.currency,
+    invoiceDate: raw.invoiceDate,
+    dueDate: raw.dueDate,
+    description: raw.description?.trim() || "",
+    customer: {
+      name: resolveCustomerName(raw.customer),
+      email: raw.customer?.contact?.email || undefined,
+      mobile: raw.customer?.contact?.mobileNumber || undefined,
+      address: address
+        ? {
+            premise: address.premise,
+            city: address.city,
+            county: address.county,
+            postcode: address.postcode,
+            countryCode: address.countryCode,
+            addressType: address.addressType,
+          }
+        : undefined,
+    },
+    items: (raw.items ?? []).map((item) => ({
+      itemName: item.itemName || "—",
+      description: item.description?.trim() || "",
+      quantity: item.quantity ?? 0,
+      rate: item.rate ?? 0,
+      itemUOM: item.itemUOM || "",
+      amount: item.amount ?? item.netAmount ?? (item.quantity ?? 0) * (item.rate ?? 0),
+      extensions: (item.extensions ?? []).map((e) => ({
+        name: e.name || "adjustment",
+        addDeduct: e.addDeduct || "ADD",
+        type: e.type || "FIXED_VALUE",
+        value: e.value ?? 0,
+      })),
+      customFields: cleanCustomFields(item.customFields),
+    })),
+    bankAccount: raw.bankAccount?.accountNumber
+      ? {
+          accountName: raw.bankAccount.accountName,
+          accountNumber: raw.bankAccount.accountNumber,
+          sortCode: raw.bankAccount.sortCode,
+          bankId: raw.bankAccount.bankId,
+        }
+      : undefined,
+    documents: (raw.documents ?? []).filter((d) => d.documentName || d.documentUrl),
+    customFields: cleanCustomFields(raw.customFields),
+    totals: {
+      subtotal: raw.invoiceSubTotal ?? 0,
+      tax: raw.totalTax ?? 0,
+      discount: raw.totalDiscount ?? 0,
+      total: raw.totalAmount ?? 0,
+      paid: raw.totalPaid ?? 0,
+      balance: raw.balanceAmount ?? 0,
+    },
+  };
+}
+
+/** Keep only key/value pairs that have a non-empty key. */
+function cleanCustomFields(
+  fields: { key?: string; value?: string }[] | undefined,
+): { key: string; value: string }[] {
+  return (fields ?? [])
+    .filter((f) => f.key?.trim())
+    .map((f) => ({ key: f.key!.trim(), value: f.value ?? "" }));
 }
