@@ -6,7 +6,6 @@ const validInvoice = {
   customerLastName: "Lovelace",
   customerEmail: "ada@example.com",
   customerMobile: "+6597594971",
-  invoiceNumber: "INV1001",
   currency: "GBP" as const,
   invoiceDate: "2026-07-07",
   dueDate: "2026-07-21",

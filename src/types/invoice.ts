@@ -180,6 +180,8 @@ export interface InvoiceDetail {
   description: string;
   customer: {
     name: string;
+    firstName?: string;
+    lastName?: string;
     email?: string;
     mobile?: string;
     address?: InvoiceAddress;

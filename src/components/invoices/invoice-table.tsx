@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, FileX2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Copy, Eye, FileX2, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
@@ -13,6 +13,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InvoiceStatusBadge } from "@/components/invoices/invoice-status-badge";
 import { SORT_FIELDS, type InvoiceQuery } from "@/schemas/invoice-query.schema";
@@ -107,6 +113,9 @@ export function InvoiceTable({
                   )}
                 </TableHead>
               ))}
+              <TableHead className="w-10">
+                <span className="sr-only">Actions</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -135,6 +144,9 @@ export function InvoiceTable({
                 </TableCell>
                 <TableCell className="text-right font-medium tabular-nums">
                   {formatCurrency(inv.totalAmount, inv.currency)}
+                </TableCell>
+                <TableCell className="text-right">
+                  <RowActions invoiceId={inv.id} />
                 </TableCell>
               </TableRow>
             ))}
@@ -181,6 +193,36 @@ export function InvoiceTable({
         ))}
       </ul>
     </div>
+  );
+}
+
+/** Per-row three-dots menu. stopPropagation keeps the row's navigation from firing. */
+function RowActions({ invoiceId }: { invoiceId: string }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Invoice actions"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link href={`/invoices/${invoiceId}`}>
+            <Eye /> View details
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={`/invoices/new?from=${invoiceId}`}>
+            <Copy /> Duplicate
+          </Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

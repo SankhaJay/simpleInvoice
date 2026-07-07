@@ -20,7 +20,6 @@ const baseInput: CreateInvoiceInput = {
   customerLastName: "Lovelace",
   customerEmail: "ada@example.com",
   customerMobile: "+6597594971",
-  invoiceNumber: "INV1001",
   currency: "GBP",
   invoiceDate: "2026-07-07",
   dueDate: "2026-07-21",
@@ -70,6 +69,12 @@ describe("toUpstreamInvoicePayload", () => {
     expect(inv).not.toHaveProperty("documents");
     expect(inv).not.toHaveProperty("customFields");
     expect(inv.customer).not.toHaveProperty("addresses");
+  });
+
+  it("never sends an invoice number (backend generates it) but sends a non-blank itemReference", () => {
+    const inv = toUpstreamInvoicePayload(baseInput).invoices[0];
+    expect(inv).not.toHaveProperty("invoiceNumber");
+    expect(inv.items[0].itemReference).toBeTruthy();
   });
 
   it("includes the bank account (with the required bankId) when provided", () => {

@@ -272,10 +272,12 @@ export async function createInvoice(
     throw new UpstreamError(res.status, "The invoice could not be created.");
   }
 
-  const json = await parseJsonSafe<{ data?: UpstreamInvoice }>(res);
-  const created = json?.data;
+  // The create response wraps the invoice in a `data` array. Read the assigned
+  // number from there so the (possibly backend-generated) number is surfaced.
+  const json = await parseJsonSafe<{ data?: UpstreamInvoice | UpstreamInvoice[] }>(res);
+  const created = Array.isArray(json?.data) ? json?.data[0] : json?.data;
   return {
-    invoiceNumber: created?.invoiceNumber ?? input.invoiceNumber,
+    invoiceNumber: created?.invoiceNumber || "",
     invoiceId: created?.invoiceId,
   };
 }
@@ -329,7 +331,7 @@ export function toUpstreamInvoicePayload(input: CreateInvoiceInput) {
         },
         ...(documents.length ? { documents } : {}),
         invoiceReference: input.invoiceReference || undefined,
-        invoiceNumber: input.invoiceNumber,
+        // No invoiceNumber is sent — the backend generates and stores it.
         currency: input.currency,
         invoiceDate: input.invoiceDate,
         dueDate: input.dueDate,
@@ -337,7 +339,8 @@ export function toUpstreamInvoicePayload(input: CreateInvoiceInput) {
         ...(invoiceCustomFields.length ? { customFields: invoiceCustomFields } : {}),
         items: [
           {
-            itemReference: input.invoiceNumber,
+            // itemReference is required by the API, so generate one.
+            itemReference: crypto.randomUUID(),
             itemName: input.itemName,
             description: input.itemDescription || input.itemName,
             quantity: input.quantity,
@@ -468,6 +471,8 @@ export function normalizeInvoiceDetail(raw: RawInvoiceDetail): InvoiceDetail {
     description: raw.description?.trim() || "",
     customer: {
       name: resolveCustomerName(raw.customer),
+      firstName: raw.customer?.firstName || undefined,
+      lastName: raw.customer?.lastName || undefined,
       email: raw.customer?.contact?.email || undefined,
       mobile: raw.customer?.contact?.mobileNumber || undefined,
       address: address
