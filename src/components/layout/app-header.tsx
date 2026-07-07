@@ -10,6 +10,13 @@ import type { SessionUser } from "@/types/session";
 
 const NAV = [{ href: "/invoices", label: "Invoices" }];
 
+/** First letters of the first two name parts, e.g. "James Vand" → "JV". */
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return (parts[0]![0]! + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
 export function AppHeader({ user }: { user: SessionUser }) {
   const pathname = usePathname();
   const logout = useLogout();
@@ -50,10 +57,25 @@ export function AppHeader({ user }: { user: SessionUser }) {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="hidden text-right md:block">
-            <p className="text-sm font-medium leading-tight">{user.fullName || "User"}</p>
-            <p className="text-xs leading-tight text-muted-foreground">{user.organisationName}</p>
-          </div>
+          <Link
+            href="/profile"
+            aria-current={pathname === "/profile" ? "page" : undefined}
+            title="View profile"
+            className={cn(
+              "flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-accent",
+              pathname === "/profile" && "bg-accent",
+            )}
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+              {initials(user.fullName || `${user.firstName} ${user.lastName}`)}
+            </span>
+            <span className="hidden text-right md:block">
+              <span className="block text-sm font-medium leading-tight">{user.fullName || "User"}</span>
+              <span className="block text-xs leading-tight text-muted-foreground">
+                {user.organisationName}
+              </span>
+            </span>
+          </Link>
           <Button
             variant="outline"
             size="sm"

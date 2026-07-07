@@ -11,7 +11,7 @@ import type {
   UpstreamInvoice,
   UpstreamPaging,
 } from "@/types/invoice";
-import type { SessionUser } from "@/types/session";
+import type { SessionUser, UserProfile } from "@/types/session";
 
 /**
  * The 101 Digital integration layer. This is the ONLY module that knows the
@@ -155,12 +155,64 @@ interface RawProfile {
   firstName?: string;
   lastName?: string;
   fullName?: string;
+  mobileNumber?: string;
+  status?: string;
+  createdAt?: string;
+  email?: string;
+  contacts?: Array<{ contactType?: string; value?: string; email?: string }>;
   memberships?: Array<{
     token?: string;
     organisationId?: string;
     organisationName?: string;
     roleName?: string;
+    organisationRole?: string;
+    organisationNumber?: string;
+    companyNumber?: string;
   }>;
+}
+
+/**
+ * Fetch the full, read-only profile for the Profile page. Only needs the Bearer
+ * token (no org token). Returns a token-free, normalised `UserProfile`.
+ */
+export async function fetchProfile(accessToken: string): Promise<UserProfile> {
+  const res = await fetchWithTimeout(`${env.API_BASE_URL}/membership-service/1.0.0/users/me`, {
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+  });
+
+  if (!res.ok) throw new UpstreamError(res.status, "Could not load your profile.");
+
+  const json = await parseJsonSafe<{ data?: RawProfile }>(res);
+  const data = json?.data;
+  if (!data) throw new UpstreamError(502, "Profile response was empty.");
+
+  const membership = data.memberships?.[0];
+  const displayName =
+    `${data.firstName ?? ""} ${data.lastName ?? ""}`.trim() || data.fullName?.trim() || "—";
+  const email =
+    data.email ||
+    data.contacts?.find((c) => c.contactType === "EMAIL")?.value ||
+    data.contacts?.find((c) => c.email)?.email ||
+    undefined;
+
+  return {
+    userId: data.userId ?? "",
+    firstName: data.firstName ?? "",
+    lastName: data.lastName ?? "",
+    displayName,
+    mobileNumber: data.mobileNumber || undefined,
+    email,
+    status: data.status || undefined,
+    createdAt: data.createdAt || undefined,
+    organisation: {
+      id: membership?.organisationId ?? "",
+      name: membership?.organisationName ?? "—",
+      role: membership?.roleName ?? "—",
+      organisationRole: membership?.organisationRole || undefined,
+      organisationNumber: membership?.organisationNumber || undefined,
+      companyNumber: membership?.companyNumber || undefined,
+    },
+  };
 }
 
 /** Fetch a page of invoices with search / sort / filter / pagination. */
