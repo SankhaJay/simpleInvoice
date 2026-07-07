@@ -5,7 +5,9 @@ export const SORT_FIELDS = ["CREATED_DATE", "INVOICE_DATE", "DUE_DATE"] as const
 export const ORDERINGS = ["ASCENDING", "DESCENDING"] as const;
 
 /** Status filter values derived from the upstream status flags. */
-export const STATUS_FILTERS = ["Paid", "Due", "Overdue", "Draft", "Void"] as const;
+// The invoice-service only accepts these status values (confirmed via the API,
+// which 400s on anything else). Draft/Void are NOT valid statuses here.
+export const STATUS_FILTERS = ["Due", "Overdue", "Paid", "Cancelled", "Rejected"] as const;
 
 /** Page-size options offered in the pagination control. */
 export const PAGE_SIZES = [10, 20, 50] as const;
