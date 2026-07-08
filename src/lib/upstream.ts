@@ -491,14 +491,20 @@ export function normalizeInvoiceDetail(raw: RawInvoiceDetail): InvoiceDetail {
           }
         : undefined,
     },
-    items: (raw.items ?? []).map((item) => ({
+    items: (raw.items ?? []).map((item, index) => ({
       itemName: item.itemName || "—",
       description: item.description?.trim() || "",
       quantity: item.quantity ?? 0,
       rate: item.rate ?? 0,
       itemUOM: item.itemUOM || "",
       amount: item.amount ?? item.netAmount ?? (item.quantity ?? 0) * (item.rate ?? 0),
-      extensions: (item.extensions ?? []).map((e) => ({
+      extensions: [
+        ...(item.extensions ?? []),
+        // Adjustments come back at the invoice level (see toUpstreamInvoicePayload).
+        // This app has one line item, so surface them on the first item — the
+        // detail view and the duplicate flow both read item-level extensions.
+        ...(index === 0 ? (raw.extensions ?? []) : []),
+      ].map((e) => ({
         name: e.name || "adjustment",
         addDeduct: e.addDeduct || "ADD",
         type: e.type || "FIXED_VALUE",

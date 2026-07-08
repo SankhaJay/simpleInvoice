@@ -268,6 +268,23 @@ describe("normalizeInvoiceDetail", () => {
     });
     expect(d.bankAccount).toBeUndefined();
   });
+
+  it("surfaces INVOICE-level adjustments on the first line item", () => {
+    // Mirrors the real API: the create/detail API returns tax/discount at the
+    // invoice level (`extensions`), with the item's own extensions empty.
+    const d = normalizeInvoiceDetail({
+      ...rawDetail,
+      extensions: [
+        { name: "tax", addDeduct: "ADD", type: "PERCENTAGE", value: 10, total: 20 },
+        { name: "discount", addDeduct: "DEDUCT", type: "FIXED_VALUE", value: 15, total: 15 },
+      ],
+      items: [{ ...rawDetail.items[0], extensions: [] }],
+    });
+    expect(d.items[0].extensions).toEqual([
+      { name: "tax", addDeduct: "ADD", type: "PERCENTAGE", value: 10 },
+      { name: "discount", addDeduct: "DEDUCT", type: "FIXED_VALUE", value: 15 },
+    ]);
+  });
 });
 
 describe("upstream HTTP calls (mocked)", () => {
