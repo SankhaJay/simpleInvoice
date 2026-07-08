@@ -210,7 +210,10 @@ function RowActions({ invoiceId }: { invoiceId: string }) {
           <MoreHorizontal className="h-4 w-4" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      {/* Radix portals the menu, but React synthetic events still bubble through
+          the component tree to the row's onClick — stop them so item clicks
+          navigate to their own href instead of the row's detail route. */}
+      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
         <DropdownMenuItem asChild>
           <Link href={`/invoices/${invoiceId}`}>
             <Eye /> View details
