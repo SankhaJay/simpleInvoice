@@ -34,7 +34,7 @@ A production-minded invoicing web app built for the **101 Digital Web Engineer A
 - 🔗 **URL‑driven list state** — search, filter, sort and pagination live in the query string, so every view is shareable and back‑button friendly.
 - 🔁 **Self‑healing session** — the shared sandbox revokes tokens when anyone else logs in; the BFF silently refreshes and retries so the user is never kicked out.
 - ♿ **Accessible & responsive** — labelled fields, `aria-*`, keyboard‑sortable columns, and a table‑to‑cards layout on mobile.
-- 🧪 **91 unit/integration tests** (Vitest + Testing Library + MSW) plus a **9‑test Playwright end‑to‑end suite** running against a mocked upstream.
+- 🧪 **99 unit/integration tests** (Vitest + Testing Library + MSW) plus a **9‑test Playwright end‑to‑end suite** running against a mocked upstream.
 
 ---
 
@@ -92,6 +92,8 @@ All variables are **server‑only** (no `NEXT_PUBLIC_` prefix), so none are inli
 | `npm run test:coverage`  | Vitest with a V8 coverage report.                |
 | `npm run test:e2e`       | Playwright end-to-end tests (spins up app + mock upstream). |
 | `npm run test:e2e:ui`    | Playwright in interactive UI mode.               |
+| `npm run test:e2e:headed`| Playwright in a visible browser (watch it run).  |
+| `npm run test:e2e:debug` | Playwright with the step-through inspector.      |
 | `npm run format`         | Prettier write.                                  |
 
 ---
@@ -155,7 +157,7 @@ Two layers, both runnable without any real credentials.
 
 **Unit / integration** — Vitest + Testing Library + **MSW** (upstream calls mocked, never hitting the network):
 
-- **Schemas** — invoice + login + query validation, `computeInvoiceTotals`, and the duplicate‑invoice mapper.
+- **Schemas** — invoice + login + query validation, the upstream character‑set guard, `computeInvoiceTotals`, and the duplicate‑invoice mapper.
 - **Security helpers** — CSRF token/origin checks, rate‑limit windows, silent token‑refresh recovery.
 - **Upstream client** — request→payload mapping, response normalisation, and HTTP behaviours (token exchange, refresh, profile, list, detail) via MSW.
 - **Components** — login‑form validation & a11y, invoice table (loading/empty/rows/navigation), status badge, copy button, formatting.
@@ -212,6 +214,7 @@ e2e/                         Playwright specs + mock upstream server
 ## Documentation
 
 - [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) — system overview, diagrams, data flows, trade‑offs.
+- [`docs/architecture/API.md`](docs/architecture/API.md) — BFF API reference: every `/api/*` route, its auth, request/response envelope and error codes.
 - [`docs/architecture/SECURITY.md`](docs/architecture/SECURITY.md) — threat model and control mapping.
 - [`docs/architecture/adr/`](docs/architecture/adr/) — Architecture Decision Records for the key choices.
 
@@ -221,10 +224,11 @@ e2e/                         Playwright specs + mock upstream server
 
 - **Single line item per invoice**, per the brief.
 - **Invoice number is not collected** — the backend generates and stores it. The create form omits it; the app supplies the per‑line `itemReference` the API still requires. (Confirmed against the API: a create with no `invoiceNumber` returns `201` with an assigned `IV…` number.)
-- **Adjustments (`extensions`)** are a repeatable line‑item editor limited to **tax** or **discount** (the only names the API's payloads document), each with a direction (`ADD`/`DEDUCT`) and type (`FIXED_VALUE`/`PERCENTAGE`); a percentage is capped at 100. They map to **item‑level** `extensions`; rows without an amount are dropped, and the summary computes additions/deductions live.
+- **Adjustments (`extensions`)** are a repeatable editor limited to **tax** or **discount** (the only names the API's payloads document), each with a direction (`ADD`/`DEDUCT`) and type (`FIXED_VALUE`/`PERCENTAGE`); a percentage is capped at 100. They map to **invoice‑level** `extensions` — the level the invoice‑service actually folds into the totals (`totalTax`/`totalDiscount`/`totalAmount`); item‑level extensions are ignored for totals (confirmed against the live API). Rows without an amount are dropped, and the summary computes additions/deductions live.
 - **Full payload coverage.** Beyond the essentials, the create form exposes the rest of the upstream payload through optional, collapsed‑by‑default sections — **bank account** (payee), **billing address** (inline in Customer), **documents**, and **invoice/item custom fields**. Each block is sent only when filled, so a minimal invoice stays minimal on the wire.
   - **Documents**: there is no document/upload service in the provided APIs, so the form captures a name + URL and the server generates the `documentId`.
   - **Bank account** is all‑or‑nothing because the API requires a non‑empty `bankId` whenever a bank block is present.
+- **Free‑text character set.** The invoice‑service rejects a range of characters in free‑text fields — smart/typographic punctuation (curly quotes, en/em dashes, ellipsis), `: ; ? " *`, most symbols, and currency symbols other than `$`. The shared schema mirrors this rule across every free‑text field (names, reference, item name, description, address, bank name, custom fields, document names) so the form flags the offending character(s) inline instead of failing on submit. URL fields are exempt. Confirmed against the live API.
 - **Status filter values** are `Due / Overdue / Paid / Cancelled / Rejected` — the exact set the invoice‑service accepts (it `400`s on anything else).
 - **Upstream `status`** arrives as an array of `{ key, value }` flags; the UI surfaces the first active flag (e.g. `Due`, `Overdue`).
 - **Upstream `customer`** comes in two shapes (`{ name }` or `{ firstName, lastName }`); the list normalises both to a single display name.
