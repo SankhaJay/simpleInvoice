@@ -42,7 +42,10 @@ describe("toUpstreamInvoicePayload", () => {
     });
   });
 
-  it("maps tax/discount adjustments to item-level extensions and drops amount-less rows", () => {
+  it("maps tax/discount adjustments to invoice-level extensions and drops amount-less rows", () => {
+    // The backend only folds INVOICE-level extensions into the invoice totals
+    // (totalDiscount/totalAmount); item-level extensions are ignored — verified
+    // against the live API. So adjustments must be emitted at the invoice level.
     const payload = toUpstreamInvoicePayload({
       ...baseInput,
       itemExtensions: [
@@ -51,13 +54,15 @@ describe("toUpstreamInvoicePayload", () => {
         { name: "tax", addDeduct: "ADD", type: "PERCENTAGE", value: undefined }, // dropped (no amount)
       ],
     });
-    expect(payload.invoices[0].items[0].extensions).toEqual([
+    expect(payload.invoices[0].extensions).toEqual([
       { addDeduct: "ADD", type: "FIXED_VALUE", value: 10, name: "tax" },
       { addDeduct: "DEDUCT", type: "PERCENTAGE", value: 5, name: "discount" },
     ]);
+    // Not at item level — the backend would ignore them there.
+    expect(payload.invoices[0].items[0]).not.toHaveProperty("extensions");
   });
 
-  it("puts no extensions at the invoice level and omits them when none given", () => {
+  it("omits extensions entirely when none given", () => {
     const payload = toUpstreamInvoicePayload(baseInput);
     expect(payload.invoices[0]).not.toHaveProperty("extensions");
     expect(payload.invoices[0].items[0]).not.toHaveProperty("extensions");
