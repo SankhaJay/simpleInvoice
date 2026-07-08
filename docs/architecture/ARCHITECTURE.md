@@ -1,6 +1,6 @@
 # SimpleInvoice — Architecture
 
-This document describes the architecture of SimpleInvoice, the reasoning behind the key decisions, and how data flows through the system. It complements the [SECURITY.md](SECURITY.md) threat model and the [ADRs](adr/).
+This document describes the architecture of SimpleInvoice, the reasoning behind the key decisions, and how data flows through the system. It complements the [API.md](API.md) BFF route reference, the [SECURITY.md](SECURITY.md) threat model and the [ADRs](adr/).
 
 ---
 
