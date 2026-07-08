@@ -11,8 +11,45 @@ const money = z
   .nonnegative("Must be zero or greater")
   .max(1_000_000_000, "Value is too large");
 
-/** Optional free-text: accepts an empty string or a trimmed value up to `max`. */
-const optionalText = (max: number) => z.string().trim().max(max).optional().or(z.literal(""));
+/**
+ * Characters the upstream invoice-service accepts in free-text fields, verified
+ * against the live API. It allows Unicode letters (incl. accents), marks,
+ * digits and whitespace, plus this punctuation subset: . , ' - _ / ( ) & @ # %
+ * + = ! $ < >. It REJECTS smart/typographic punctuation (curly quotes “ ” ‘ ’,
+ * en/em dashes – —, ellipsis …, bullet •) and most symbols (: ; ? " * ^ ~ ` |
+ * \ { } [ ] £ € § ° © ™). Word/Docs auto-insert several of the rejected ones,
+ * so we mirror the rule here to surface a clear inline error instead of a
+ * cryptic upstream 400 on submit.
+ */
+const UPSTREAM_TEXT_DISALLOWED = /[^\p{L}\p{M}\p{N}\s.,'\-_/()&@#%+=!$<>]/gu;
+
+/**
+ * Return a "remove these characters" message if `value` contains any character
+ * the upstream API rejects, else null. The restriction is API-wide (names,
+ * reference, item name, address, bank name, custom fields and document names all
+ * reject the same set — verified against the live API). URL fields (e.g.
+ * documentUrl) are exempt because a URL legitimately contains ':'.
+ */
+function unsupportedCharsMessage(value: string | undefined): string | null {
+  if (!value) return null;
+  const bad = [...new Set(value.match(UPSTREAM_TEXT_DISALLOWED) ?? [])];
+  if (bad.length === 0) return null;
+  return `Remove unsupported character${bad.length > 1 ? "s" : ""}: ${bad.join(" ")}`;
+}
+
+/** Zod refinement wrapper for a single string field. */
+function checkUpstreamChars(value: string | undefined, ctx: z.RefinementCtx) {
+  const message = unsupportedCharsMessage(value);
+  if (message) ctx.addIssue({ code: "custom", message });
+}
+
+/** Optional free-text restricted to the character set the upstream API accepts. */
+const upstreamText = (max: number) =>
+  z.string().trim().max(max).optional().or(z.literal("")).superRefine(checkUpstreamChars);
+
+/** Required free-text restricted to the same character set. */
+const requiredUpstreamText = (max: number, requiredMessage: string) =>
+  z.string().trim().min(1, requiredMessage).max(max).superRefine(checkUpstreamChars);
 
 /** Accepted invoice-date year range (guards against typos like 0202 / 9999). */
 export const MIN_YEAR = 2000;
@@ -71,6 +108,11 @@ export const customFieldSchema = z
   .superRefine((row, ctx) => {
     if (!row.key && !row.value) return; // empty row → dropped later
     if (!row.key) ctx.addIssue({ code: "custom", path: ["key"], message: "Key is required" });
+    // The same upstream character restriction applies to both key and value.
+    for (const field of ["key", "value"] as const) {
+      const message = unsupportedCharsMessage(row[field]);
+      if (message) ctx.addIssue({ code: "custom", path: [field], message });
+    }
   });
 
 /**
@@ -86,6 +128,10 @@ export const documentSchema = z
     if (!row.documentName && !row.documentUrl) return; // empty row → dropped later
     if (!row.documentName) {
       ctx.addIssue({ code: "custom", path: ["documentName"], message: "Name is required" });
+    } else {
+      // documentName is free text (documentUrl is a URL and is exempt).
+      const message = unsupportedCharsMessage(row.documentName);
+      if (message) ctx.addIssue({ code: "custom", path: ["documentName"], message });
     }
     if (!row.documentUrl) {
       ctx.addIssue({ code: "custom", path: ["documentUrl"], message: "Enter a URL" });
@@ -132,8 +178,8 @@ export type ExtensionInput = z.infer<typeof extensionSchema>;
 export const createInvoiceSchema = z
   .object({
     // Customer
-    customerFirstName: z.string().trim().min(1, "First name is required").max(80),
-    customerLastName: z.string().trim().min(1, "Last name is required").max(80),
+    customerFirstName: requiredUpstreamText(80, "First name is required"),
+    customerLastName: requiredUpstreamText(80, "Last name is required"),
     customerEmail: z.email("Enter a valid email address").max(160),
     customerMobile: z
       .string()
@@ -142,15 +188,15 @@ export const createInvoiceSchema = z
 
     // Invoice header. The invoice number is intentionally not collected — the
     // backend generates and stores it.
-    invoiceReference: z.string().trim().max(64).optional().or(z.literal("")),
+    invoiceReference: upstreamText(64),
     currency: z.enum(CURRENCIES),
     invoiceDate: dateField("Select an invoice date"),
     dueDate: dateField("Select a due date"),
-    description: z.string().trim().max(500).optional().or(z.literal("")),
+    description: upstreamText(500),
 
     // Single line item
-    itemName: z.string().trim().min(1, "Item name is required").max(120),
-    itemDescription: z.string().trim().max(300).optional().or(z.literal("")),
+    itemName: requiredUpstreamText(120, "Item name is required"),
+    itemDescription: upstreamText(300),
     quantity: z
       .number({ message: "Enter a quantity" })
       .positive("Quantity must be greater than zero")
@@ -165,10 +211,10 @@ export const createInvoiceSchema = z
     itemExtensions: z.array(extensionSchema).optional(),
 
     // --- Optional billing address (customer.addresses[0]) ---
-    addressPremise: optionalText(120),
-    addressCity: optionalText(80),
-    addressCounty: optionalText(80),
-    addressPostcode: optionalText(16),
+    addressPremise: upstreamText(120),
+    addressCity: upstreamText(80),
+    addressCounty: upstreamText(80),
+    addressPostcode: upstreamText(16),
     addressCountryCode: z
       .string()
       .trim()
@@ -179,8 +225,8 @@ export const createInvoiceSchema = z
     // --- Optional payee bank account (bankAccount). All-or-nothing: if any
     // field is provided the whole block is required, because the upstream API
     // mandates a non-empty `bankId` whenever a bankAccount is present. ---
-    bankId: optionalText(64),
-    bankAccountName: optionalText(120),
+    bankId: upstreamText(64),
+    bankAccountName: upstreamText(120),
     bankSortCode: z
       .string()
       .trim()

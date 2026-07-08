@@ -21,6 +21,98 @@ describe("createInvoiceSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  // The upstream invoice-service rejects a set of special characters in
+  // free-text fields (verified against the live API). The schema mirrors that
+  // so the user gets a clear inline error instead of a cryptic 400 on submit.
+  it("rejects characters the upstream API disallows in the description", () => {
+    for (const bad of [":", ";", "?", '"', "*", "£", "€", "—", "…", "“", "”", "‘", "’", "•"]) {
+      const result = createInvoiceSchema.safeParse({
+        ...validInvoice,
+        description: `Invoice ${bad} note`,
+      });
+      expect(result.success, `expected ${JSON.stringify(bad)} to be rejected`).toBe(false);
+    }
+  });
+
+  it("names the unsupported character(s) in the message", () => {
+    const result = createInvoiceSchema.safeParse({ ...validInvoice, description: "a : b ; c" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toContain(":");
+      expect(result.error.issues[0].message).toContain(";");
+    }
+  });
+
+  it("accepts letters (incl. accents), digits and the allowed punctuation", () => {
+    const result = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      description: "Café & Co. (2026) — no wait, hyphen-ok: order #12/3 @ 50% + $5 = done!",
+      itemDescription: "José's item_reference/A (v2) #7 <tag> 100%",
+    });
+    // The em-dash and colon above make this specific string invalid; assert the
+    // allowed subset separately to avoid coupling to those two characters.
+    const ok = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      description: "Café & Co. (2026), hyphen-ok, order #12/3 @ 50% + $5 = done!",
+      itemDescription: "José's item_reference/A (v2) #7 <tag> 100%",
+    });
+    expect(result.success).toBe(false); // contains — and :
+    expect(ok.success, JSON.stringify(ok.success ? "" : ok.error.issues)).toBe(true);
+  });
+
+  it("also guards the item description field", () => {
+    const result = createInvoiceSchema.safeParse({
+      ...validInvoice,
+      itemDescription: "line : item",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  // The upstream character restriction is API-wide — verified against the live
+  // API across every free-text field — so the guard is applied to all of them.
+  it("guards every free-text field the API restricts", () => {
+    const fields: Array<[string, unknown]> = [
+      ["customerFirstName", "Ada:"],
+      ["customerLastName", "Lovelace;"],
+      ["invoiceReference", "PO-1234 *"],
+      ["itemName", "Design ?"],
+      ["addressPremise", "CT11 : road"],
+      ["addressCity", "London;"],
+      ["addressCounty", "Kent*"],
+      ["addressPostcode", "AB1:2CD"],
+      ["bankId", "bank:id"],
+      ["bankAccountName", "John : Terry"],
+    ];
+    for (const [field, bad] of fields) {
+      const result = createInvoiceSchema.safeParse({ ...validInvoice, [field]: bad });
+      expect(result.success, `expected ${field}=${JSON.stringify(bad)} to be rejected`).toBe(false);
+    }
+  });
+
+  it("guards custom field keys/values and document names, but not document URLs", () => {
+    expect(
+      createInvoiceSchema.safeParse({ ...validInvoice, customFields: [{ key: "k:1", value: "v" }] })
+        .success,
+    ).toBe(false);
+    expect(
+      createInvoiceSchema.safeParse({ ...validInvoice, customFields: [{ key: "k", value: "v:1" }] })
+        .success,
+    ).toBe(false);
+    expect(
+      createInvoiceSchema.safeParse({
+        ...validInvoice,
+        documents: [{ documentName: "Bill : 1", documentUrl: "https://example.com/x" }],
+      }).success,
+    ).toBe(false);
+    // A URL legitimately contains ':' — it must still be accepted.
+    expect(
+      createInvoiceSchema.safeParse({
+        ...validInvoice,
+        documents: [{ documentName: "Bill 1", documentUrl: "https://example.com/x" }],
+      }).success,
+    ).toBe(true);
+  });
+
   it("rejects an invalid email", () => {
     const result = createInvoiceSchema.safeParse({ ...validInvoice, customerEmail: "not-an-email" });
     expect(result.success).toBe(false);

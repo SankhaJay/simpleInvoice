@@ -317,7 +317,7 @@ export function toUpstreamInvoicePayload(input: CreateInvoiceInput) {
   const documents = buildDocuments(input.documents);
   const invoiceCustomFields = buildCustomFields(input.customFields);
   const itemCustomFields = buildCustomFields(input.itemCustomFields);
-  const itemExtensions = buildExtensions(input.itemExtensions);
+  const extensions = buildExtensions(input.itemExtensions);
 
   return {
     invoices: [
@@ -336,6 +336,12 @@ export function toUpstreamInvoicePayload(input: CreateInvoiceInput) {
         invoiceDate: input.invoiceDate,
         dueDate: input.dueDate,
         description: input.description || undefined,
+        // Adjustments (tax/discount) MUST sit at the invoice level: the backend
+        // only folds invoice-level extensions into the invoice totals
+        // (totalDiscount/totalAmount). Item-level extensions are ignored for
+        // totals — verified against the live API. With one line item per
+        // invoice, invoice-level and item-level are semantically identical here.
+        ...(extensions.length ? { extensions } : {}),
         ...(invoiceCustomFields.length ? { customFields: invoiceCustomFields } : {}),
         items: [
           {
@@ -346,7 +352,6 @@ export function toUpstreamInvoicePayload(input: CreateInvoiceInput) {
             quantity: input.quantity,
             rate: input.rate,
             itemUOM: input.itemUOM,
-            ...(itemExtensions.length ? { extensions: itemExtensions } : {}),
             ...(itemCustomFields.length ? { customFields: itemCustomFields } : {}),
           },
         ],
