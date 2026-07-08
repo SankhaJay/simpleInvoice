@@ -4,6 +4,8 @@ A production-minded invoicing web app built for the **101 Digital Web Engineer A
 
 > **Stack:** Next.js 16 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS v4 + shadcn/ui · TanStack Query v5 · react‑hook‑form + Zod · iron‑session · Vitest + Testing Library + MSW · Playwright.
 
+> **🔗 Live demo:** **[simple-invoice-ecru.vercel.app](https://simple-invoice-ecru.vercel.app)** — deployed on Vercel (auto‑deploys from `main`). Sign in with the sandbox credentials from Appendix A of the brief.
+
 ---
 
 ## Table of contents
@@ -53,7 +55,7 @@ npm run dev
 # → http://localhost:3000
 ```
 
-Sign in with the sandbox credentials from the assessment brief (Appendix A). After login you land on the **invoice list**.
+Sign in with the sandbox credentials from the assessment brief (Appendix A). After login you land on the **invoice list**. (Prefer not to run it locally? The same build is live at **[simple-invoice-ecru.vercel.app](https://simple-invoice-ecru.vercel.app)**.)
 
 ---
 
@@ -72,7 +74,7 @@ All variables are **server‑only** (no `NEXT_PUBLIC_` prefix), so none are inli
 | `SESSION_COOKIE_NAME` |    –     | Session cookie name. Defaults to `si_session`.                     |
 | `LOGIN_RATE_LIMIT`    |    –     | Max login attempts per IP per minute. Defaults to `5`.             |
 
-`.env.local` is git‑ignored; a committed [`.env.example`](.env.example) documents the shape. (`.env.example` also lists optional `E2E_USERNAME`/`E2E_PASSWORD` — fictional credentials the E2E mock accepts, not secrets.)
+`.env.local` is git‑ignored; a committed [`.env.example`](.env.example) documents the shape. (`.env.example` also lists optional `E2E_USERNAME`/`E2E_PASSWORD` — fictional credentials the E2E mock accepts, not secrets.) The same variables are set as environment variables in the Vercel project for the live deployment.
 
 ---
 
@@ -172,6 +174,8 @@ npm run test:coverage # with coverage
 npm run test:e2e      # headless
 npm run test:e2e:ui   # interactive
 ```
+
+**CI / CD** — [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the full gate on every push / PR to `main` and `develop`: **lint → typecheck → unit tests → production build → E2E**. It needs no secrets (unit tests inject their own env; E2E uses the local mock upstream), and uploads the Playwright report as an artifact. In parallel, **Vercel** (connected to the repo) auto‑deploys `main` to the [live URL](https://simple-invoice-ecru.vercel.app) — so a green push both proves the suite and ships.
 
 ---
 

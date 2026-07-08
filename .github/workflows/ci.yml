@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint · Typecheck · Unit · Build · E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Dummy, non-secret values so env validation (src/lib/env.ts) passes for the
+    # build. No real credentials are needed: unit tests inject their own env, and
+    # the E2E app is pointed at a local mock upstream (see playwright.config.ts).
+    env:
+      AUTH_BASE_URL: https://upstream.example.com
+      API_BASE_URL: https://upstream.example.com
+      OAUTH_CLIENT_ID: ci-client
+      OAUTH_CLIENT_SECRET: ci-secret
+      OAUTH_SCOPE: openid
+      SESSION_SECRET: ci-session-secret-at-least-32-characters-long
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit & integration tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
