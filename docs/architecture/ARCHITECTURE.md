@@ -223,10 +223,10 @@ The **detail** endpoint returns a richer `InvoiceDetail` (customer contact + add
 
 ## 9. What I would add next (given more time)
 
-Already delivered beyond the brief: invoice **detail view**, **duplicate**, **profile**, full‑payload create form, **silent token refresh**, a **Playwright E2E** suite, and a **GitHub Actions CI** pipeline (lint → typecheck → unit → build → e2e). Remaining ideas:
+Already delivered beyond the brief: invoice **detail view**, **duplicate**, **profile**, full‑payload create form, **silent token refresh**, a **Playwright E2E** suite, a **GitHub Actions CI** pipeline (lint → typecheck → unit → build → e2e), and **continuous deployment** — the repo is connected to **Vercel**, which auto‑deploys `main` to [simple-invoice-ecru.vercel.app](https://simple-invoice-ecru.vercel.app) (env vars set in the Vercel project; `Secure` cookies + HSTS are active there over HTTPS). Remaining ideas:
 
 - **Invoice edit / void** and multi‑line items (behind a feature flag).
 - A **shared store (Redis)** for the rate limiter and refresh single‑flight, plus structured request logging and metrics — needed for horizontal scaling.
 - **Proactive token refresh** ahead of expiry and a configurable/rolling session length (today it's a ~1‑hour session; refresh already covers mid‑session revocation reactively).
-- A **container image** (Dockerfile) for portable deployment.
+- A **container image** (Dockerfile) for host‑agnostic deployment beyond Vercel.
 - **Nonce‑based CSP for styles** to drop `'unsafe-inline'` from `style-src`.
