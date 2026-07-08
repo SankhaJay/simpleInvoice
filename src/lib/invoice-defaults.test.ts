@@ -68,6 +68,25 @@ describe("invoiceDetailToFormValues", () => {
     ]);
   });
 
+  it("carries BOTH tax and discount adjustments into the duplicate form", () => {
+    const v = invoiceDetailToFormValues({
+      ...detail,
+      items: [
+        {
+          ...detail.items[0]!,
+          extensions: [
+            { name: "tax", addDeduct: "ADD", type: "PERCENTAGE", value: 10 },
+            { name: "discount", addDeduct: "DEDUCT", type: "FIXED_VALUE", value: 15 },
+          ],
+        },
+      ],
+    });
+    expect(v.itemExtensions).toEqual([
+      { name: "tax", addDeduct: "ADD", type: "PERCENTAGE", value: 10 },
+      { name: "discount", addDeduct: "DEDUCT", type: "FIXED_VALUE", value: 15 },
+    ]);
+  });
+
   it("produces values that pass the create schema", () => {
     expect(createInvoiceSchema.safeParse(values).success).toBe(true);
   });

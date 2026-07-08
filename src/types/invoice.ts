@@ -137,6 +137,9 @@ export interface RawInvoiceDetail {
   } | null;
   documents?: { documentId?: string; documentName?: string; documentUrl?: string }[];
   items?: RawItem[];
+  // Adjustments (tax/discount) are returned at the INVOICE level, not the item
+  // level — the create API also only honours them there.
+  extensions?: RawItemExtension[];
   customFields?: { key?: string; value?: string }[];
 }
 
